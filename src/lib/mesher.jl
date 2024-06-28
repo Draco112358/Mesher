@@ -128,7 +128,7 @@ function dump_json_data(filename, o_x::Float64, o_y::Float64, o_z::Float64, cs_x
     return json_dict
 end
 
-function existsThisBrick(brick_coords::CartesianIndex, mesher_matrices::Dict, material)
+function existsThisBrickWithMaterial(brick_coords::CartesianIndex, mesher_matrices::Dict, material)
     if 1 <= brick_coords[1] <= length(mesher_matrices[material]) &&
        1 <= brick_coords[2] <= length(mesher_matrices[material][brick_coords[1]]) &&
        1 <= brick_coords[3] <= length(mesher_matrices[material][brick_coords[1]][brick_coords[2]])
@@ -138,18 +138,18 @@ function existsThisBrick(brick_coords::CartesianIndex, mesher_matrices::Dict, ma
 end
 
 function is_brick_valid(brick_coords::CartesianIndex, mesher_matrices::Dict, material)
-    brickDown = existsThisBrick(CartesianIndex(brick_coords[1] - 1, brick_coords[2], brick_coords[3]), mesher_matrices, material)
-    brickUp = existsThisBrick(CartesianIndex(brick_coords[1] + 1, brick_coords[2], brick_coords[3]), mesher_matrices, material)
+    brickDown = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1] - 1, brick_coords[2], brick_coords[3]), mesher_matrices, material)
+    brickUp = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1] + 1, brick_coords[2], brick_coords[3]), mesher_matrices, material)
     if (!brickDown && !brickUp)
         return Dict("valid" => false, "axis" => "x", "stopped" => false)
     end
-    brickDown = existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2] - 1, brick_coords[3]), mesher_matrices, material)
-    brickUp = existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2] + 1, brick_coords[3]), mesher_matrices, material)
+    brickDown = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2] - 1, brick_coords[3]), mesher_matrices, material)
+    brickUp = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2] + 1, brick_coords[3]), mesher_matrices, material)
     if (!brickDown && !brickUp)
         return return Dict("valid" => false, "axis" => "y", "stopped" => false)
     end
-    brickDown = existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] - 1), mesher_matrices, material)
-    brickUp = existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] + 1), mesher_matrices, material)
+    brickDown = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] - 1), mesher_matrices, material)
+    brickUp = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] + 1), mesher_matrices, material)
     if (!brickDown && !brickUp)
         return return Dict("valid" => false, "axis" => "z", "stopped" => false)
     end
@@ -195,29 +195,36 @@ function brick_touches_the_main_bounding_box(brick_coords::CartesianIndex, meshe
     return false
 end
 
+function existABrickInThisPosition(position_coords::CartesianIndex, mesher_matrices::Dict)::Bool
+    for mat in keys(mesher_matrices)
+        if (existsThisBrickWithMaterial(position_coords, mesher_matrices, mat))
+            return true
+        end
+        return false
+    end
+end
+
 function brick_is_on_surface(brick_coords::CartesianIndex, mesher_matrices::Dict, material)::Bool
     if brick_touches_the_main_bounding_box(brick_coords, mesher_matrices, material)
         return true
     end
-    for mat in keys(mesher_matrices)
-        if !existsThisBrick(CartesianIndex(brick_coords[1] - 1, brick_coords[2], brick_coords[3]), mesher_matrices, mat)
-            return true
-        end
-        if !existsThisBrick(CartesianIndex(brick_coords[1] + 1, brick_coords[2], brick_coords[3]), mesher_matrices, mat)
-            return true
-        end
-        if !existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2] - 1, brick_coords[3]), mesher_matrices, mat)
-            return true
-        end
-        if !existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2] + 1, brick_coords[3]), mesher_matrices, mat)
-            return true
-        end
-        if !existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] - 1), mesher_matrices, mat)
-            return true
-        end
-        if !existsThisBrick(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] + 1), mesher_matrices, mat)
-            return true
-        end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1] - 1, brick_coords[2], brick_coords[3]), mesher_matrices)
+        return true
+    end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1] + 1, brick_coords[2], brick_coords[3]), mesher_matrices)
+        return true
+    end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1], brick_coords[2] - 1, brick_coords[3]), mesher_matrices)
+        return true
+    end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1], brick_coords[2] + 1, brick_coords[3]), mesher_matrices)
+        return true
+    end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] - 1), mesher_matrices)
+        return true
+    end
+    if !existABrickInThisPosition(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] + 1), mesher_matrices)
+        return true
     end
     return false
 end
@@ -280,13 +287,13 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
     # elseif (geometry_z_bound < quantum_z)
     #     result = Dict("z" => "too large", "max_z" => geometry_z_bound)
     # else
-        # quantum_x, quantum_y, quantum_z = 1, 1e-2, 1e-2 #per Test 1
-        # # quantum_x, quantum_y, quantum_z = 1e-1, 1, 1e-2  # per Test 2
-        # # quantum_x, quantum_y, quantum_z = 1e-1, 1e-1, 1e-2  # per Test 3
-        # # quantum_x, quantum_y, quantum_z = 2, 1, 1e-2  # per Test 4
-        # # quantum_x, quantum_y, quantum_z = 1, 1, 1e-2  # per Test 5
+    # quantum_x, quantum_y, quantum_z = 1, 1e-2, 1e-2 #per Test 1
+    # # quantum_x, quantum_y, quantum_z = 1e-1, 1, 1e-2  # per Test 2
+    # # quantum_x, quantum_y, quantum_z = 1e-1, 1e-1, 1e-2  # per Test 3
+    # # quantum_x, quantum_y, quantum_z = 2, 1, 1e-2  # per Test 4
+    # # quantum_x, quantum_y, quantum_z = 1, 1, 1e-2  # per Test 5
 
-        #print("QUANTA:",quantum_x, quantum_y, quantum_z)
+    #print("QUANTA:",quantum_x, quantum_y, quantum_z)
 
     n_of_cells_x = ceil(Int, geometry_x_bound / quantum_x)
     n_of_cells_y = ceil(Int, geometry_y_bound / quantum_y)
