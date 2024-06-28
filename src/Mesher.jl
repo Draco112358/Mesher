@@ -25,6 +25,7 @@ export publish_data
 
 const VIRTUALHOST = "/"
 const HOST = "127.0.0.1"
+const stop_condition = Ref{Float64}(0.0)
 
 function receive()
   # 1. Create a connection to the localhost or 127.0.0.1 of virtualhost '/'
@@ -60,6 +61,9 @@ function receive()
                   publish_data(results, "mesher_results", chan)
                 end
               end
+              if data["message"] == "stop"
+                stop_condition[] = 1.0
+              end
               basic_ack(chan, msg.delivery_tag)
           end
 
@@ -69,7 +73,7 @@ function receive()
 
           @assert success_management == true
 
-          while true
+          while stop_condition[] != 1.0
               sleep(1)
           end
           # 5. Close the connection
