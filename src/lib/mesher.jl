@@ -1,9 +1,7 @@
 include("voxelizator.jl")
 include("voxelize_internal.jl")
-using MeshIO
-using FileIO
-using Meshes
-using MeshBridge
+include("saveFiles.jl")
+using MeshIO, FileIO, Meshes, MeshBridge, JSON
 
 function find_mins_maxs(mesh_object::Mesh)
     bb = boundingbox(mesh_object)
@@ -358,10 +356,22 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
     end
     result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
     #end
-    return result
+    if result["isValid"] == true
+        (meshPath, gridsPath) = saveMeshAndGrids(id, result)
+        if !isnothing(chan)
+            res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
+            publish_data(res, "mesher_results", chan)
+        end
+    elseif result["isValid"] == false
+        if !isnothing(chan)
+            res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "id" => id)
+            publish_data(res, "mesher_results", chan)
+        end
+    end
+    # return result
 end
 
-function quantumAdvice(mesherInput::Dict)
+function quantumAdvice(mesherInput::Dict; chan=nothing)
     meshes = Dict()
     for geometry in Array{Any}(mesherInput["STLList"])
         #@assert geometry isa Dict
@@ -439,5 +449,9 @@ function quantumAdvice(mesherInput::Dict)
     q_y = 0.5 * q_y
     q_z = 0.5 * q_z
 
-    return [q_x, q_y, q_z]
+    if !isnothing(chan)
+        result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
+        publish_data(result, "mesh_advices", chan)
+    end
+    # return [q_x, q_y, q_z]
 end

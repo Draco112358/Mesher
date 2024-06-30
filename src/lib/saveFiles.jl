@@ -44,7 +44,7 @@ function saveMeshAndGrids(fileName::String, data::Dict)
   return meshPath, gridsPath
 end
 
-function saveMeshAndGrids2(fileName::String, data::Dict)
+function saveGZippedMeshAndGrids(fileName::String, data::Dict)
   initializeFolders()
   (meshPath, gridsPath) = getStorageFilePathsGZip(fileName)
   fh = GZip.open(meshPath, "w")
