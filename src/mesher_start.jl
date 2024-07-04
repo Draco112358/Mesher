@@ -30,7 +30,7 @@ function receive()
   connection(; virtualhost=VIRTUALHOST, host=HOST) do conn
     # 2. Create a channel to send messages
     AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
-
+      publish_data(Dict("target" => "mesher", "status" => "starting"), "server_init", chan)
       force_compile2()
       # EXCG_DIRECT = "MyDirectExcg"
       # @assert exchange_declare(chan1, EXCG_DIRECT, EXCHANGE_TYPE_DIRECT)
@@ -72,11 +72,12 @@ function receive()
       success_management, consumer_tag = basic_consume(chan, management_queue, on_receive_management)
 
       @assert success_management == true
-
+      publish_data(Dict("target" => "mesher", "status" => "ready"), "server_init", chan)
       while stop_condition[] != 1.0
         sleep(1)
       end
       # 5. Close the connection
+      publish_data(Dict("target" => "mesher", "status" => "idle"), "server_init", chan)
     end
   end
 end
