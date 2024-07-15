@@ -1,6 +1,7 @@
 include("voxelizator.jl")
 include("voxelize_internal.jl")
 include("saveFiles.jl")
+include("utility.jl")
 using MeshIO, FileIO, Meshes, MeshBridge, JSON
 
 function find_mins_maxs(mesh_object::Mesh)
@@ -272,8 +273,16 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
 
             Base.Filesystem.rm("stl.stl", force=true)
         end
+        if is_stopped_computation(id, chan)
+            return false
+        end
+
         geometry_x_bound, geometry_y_bound, geometry_z_bound, geometry_data_object = find_box_dimensions(meshes)
 
+
+        if is_stopped_computation(id, chan)
+            return false
+        end
 
         # grids grainx
         # assert type(dictData['quantum'])==list
@@ -303,6 +312,10 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
         #print("GRID:",n_of_cells_x, n_of_cells_y, n_of_cells_z)
 
         cell_size_x, cell_size_y, cell_size_z = find_sizes(n_of_cells_x, n_of_cells_y, n_of_cells_z, geometry_data_object)
+
+        if is_stopped_computation(id, chan)
+            return false
+        end
         #precision = 0.1
         #print("CELL SIZE AFTER ADJUSTEMENTS:",(cell_size_x), (cell_size_y), (cell_size_z))
         # if __debug__:
@@ -314,6 +327,10 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
 
         mesher_output = fill(false, (length(dictData["STLList"]), n_of_cells_x, n_of_cells_y, n_of_cells_z))
 
+        if is_stopped_computation(id, chan)
+            return false
+        end
+
         mapping_ids_to_materials = Dict()
 
         counter_stl_files = 1
@@ -323,6 +340,10 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
             #mapping dei materiali su id e impostazione priorità per i conduttori in overlapping.
             mapping_ids_to_materials[counter_stl_files] = Dict("material" => material, "toKeep" => (value["conductivity"] != 0.0) ? true : false)
             counter_stl_files += 1
+        end
+
+        if is_stopped_computation(id, chan)
+            return false
         end
 
 
@@ -345,7 +366,18 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
         json_file_name = "outputMesher.json"
         mesh_result = dump_json_data(json_file_name, origin_x, origin_y, origin_z, cell_size_x, cell_size_y, cell_size_z,
             n_of_cells_x, n_of_cells_y, n_of_cells_z, mesher_output, mapping_ids_to_materials)
+
+        if is_stopped_computation(id, chan)
+            return false
+        end
+
+
         mesh_result["mesh_is_valid"] = is_mesh_valid(mesh_result["mesher_matrices"], id, chan)
+
+        if is_stopped_computation(id, chan)
+            return false
+        end
+
         if (mesh_result["mesh_is_valid"]["valid"])
             externalGrids = Dict(
                 "externalGrids" => create_grids_externals(mesh_result["mesher_matrices"]),
@@ -355,10 +387,15 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
                 "cell_size" => "$(mesh_result["cell_size"]["cell_size_x"])-$(mesh_result["cell_size"]["cell_size_y"])-$(mesh_result["cell_size"]["cell_size_z"])"
             )
         end
+
+        if is_stopped_computation(id, chan)
+            return false
+        end
+
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
         #end
         if result["isValid"] == true
-            (meshPath, gridsPath) = saveMeshAndGrids(id, result)
+            (meshPath, gridsPath) = saveGZippedMeshAndGrids(id, result)
             if !isnothing(chan)
                 res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
                 publish_data(res, "mesher_results", chan)
@@ -373,9 +410,9 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
         if e isa OutOfMemoryError
             res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => "out of memory")
             publish_data(res, "mesher_results", chan)
-        # else
-        #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
-        #     publish_data(res, "mesher_results", chan)
+            # else
+            #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
+            #     publish_data(res, "mesher_results", chan)
         end
     end
 end

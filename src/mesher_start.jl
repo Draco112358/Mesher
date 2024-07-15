@@ -1,6 +1,7 @@
 using JSON, Base.Threads, AMQPClient
 # include("lib/saveFiles.jl")
 include("lib/mesher.jl")
+include("lib/utility.jl")
 
 const stopComputation = []
 
@@ -11,15 +12,6 @@ function force_compile2()
   doMeshing(data, "init")
   println("MESHER READY")
 end
-
-
-function publish_data(result::Dict, queue::String, chan)
-  data = convert(Vector{UInt8}, codeunits(JSON.json(result)))
-  message = Message(data, content_type="application/json", delivery_mode=PERSISTENT)
-  basic_publish(chan, message; exchange="", routing_key=queue)
-end
-
-export publish_data
 
 const VIRTUALHOST = "/"
 const HOST = "127.0.0.1"
@@ -46,12 +38,12 @@ function receive()
         #data = String(msg.data)
         println(data["message"])
         if (data["message"] == "compute suggested quantum")
-          quantumAdvice(data["body"]; chan)
+          Threads.@spawn quantumAdvice(data["body"]; chan)
           # res = quantumAdvice(data["body"])
           # result = Dict("quantum" => JSON.json(res), "id" => data["body"]["id"])
           # publish_data(result, "mesh_advices", chan)
         elseif data["message"] == "compute mesh"
-          doMeshing(data["body"], data["body"]["fileName"], chan)
+          Threads.@spawn doMeshing(data["body"], data["body"]["fileName"], chan)
           # result = doMeshing(data["body"], data["body"]["fileName"], chan)
           # if result["isValid"] == true
           #   (meshPath, gridsPath) = saveMeshAndGrids(data["body"]["fileName"], result)
@@ -64,6 +56,9 @@ function receive()
         end
         if data["message"] == "stop"
           stop_condition[] = 1.0
+        end
+        if data["message"] == "stop computation"
+          push!(stopComputation, data["id"])
         end
       end
 

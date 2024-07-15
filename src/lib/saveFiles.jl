@@ -55,3 +55,15 @@ function saveGZippedMeshAndGrids(fileName::String, data::Dict)
   close(fh2)
   return meshPath, gridsPath
 end
+
+# function saveGZippedMeshAndPlainGrids(fileName::String, data::Dict)
+#   initializeFolders()
+#   (meshPath, gridsPath) = getStorageFilePathsGZip(fileName)
+#   fh = GZip.open(meshPath, "w")
+#   write(fh, JSON.json(data["mesh"]))
+#   close(fh)
+#   open(gridsPath, "w") do f
+#     write(f, JSON.json(data["grids"]))
+#   end
+#   return meshPath, gridsPath
+# end
