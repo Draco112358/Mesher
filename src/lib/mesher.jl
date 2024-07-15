@@ -168,10 +168,10 @@ function is_mesh_valid(mesher_matrices::Dict, id::String, chan)
                     publish_data(Dict("index" => index, "id" => id), "mesher_feedback", chan)
                 end
             end
-            if length(stopComputation) > 0
-                pop!(stopComputation)
-                return Dict("valid" => false, "stopped" => true)
-            end
+            # if length(stopComputation) > 0
+            #     pop!(stopComputation)
+            #     return Dict("valid" => false, "stopped" => true)
+            # end
             if (mesher_matrices[material][brick_coords[1]][brick_coords[2]][brick_coords[3]])
                 brick_valid = is_brick_valid(brick_coords, mesher_matrices, material)
                 if (!brick_valid["valid"])
@@ -395,7 +395,7 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
         #end
         if result["isValid"] == true
-            (meshPath, gridsPath) = saveGZippedMeshAndGrids(id, result)
+            (meshPath, gridsPath) = saveGZippedMeshAndPlainGrids(id, result)
             if !isnothing(chan)
                 res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
                 publish_data(res, "mesher_results", chan)

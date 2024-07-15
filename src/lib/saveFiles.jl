@@ -32,6 +32,12 @@ function getStorageFilePathsGZip(filename::String)
   return meshPath, gridsPath
 end
 
+function getStorageFilePathsGZipMeshAndPlainGrids(filename::String)
+  meshPath = homedir() * pathSeparator() * esymiaFolderName * pathSeparator() * meshFolderName * pathSeparator() * filename * ".gz"
+  gridsPath = homedir() * pathSeparator() * esymiaFolderName * pathSeparator() * gridsFolderName * pathSeparator() * filename * ".json"
+  return meshPath, gridsPath
+end
+
 function saveMeshAndGrids(fileName::String, data::Dict)
   initializeFolders()
   (meshPath, gridsPath) = getStorageFilePaths(fileName)
@@ -44,26 +50,26 @@ function saveMeshAndGrids(fileName::String, data::Dict)
   return meshPath, gridsPath
 end
 
-function saveGZippedMeshAndGrids(fileName::String, data::Dict)
-  initializeFolders()
-  (meshPath, gridsPath) = getStorageFilePathsGZip(fileName)
-  fh = GZip.open(meshPath, "w")
-  write(fh, JSON.json(data["mesh"]))
-  close(fh)
-  fh2 = GZip.open(gridsPath, "w")
-  write(fh2, JSON.json(data["grids"]))
-  close(fh2)
-  return meshPath, gridsPath
-end
-
-# function saveGZippedMeshAndPlainGrids(fileName::String, data::Dict)
+# function saveGZippedMeshAndGrids(fileName::String, data::Dict)
 #   initializeFolders()
 #   (meshPath, gridsPath) = getStorageFilePathsGZip(fileName)
 #   fh = GZip.open(meshPath, "w")
 #   write(fh, JSON.json(data["mesh"]))
 #   close(fh)
-#   open(gridsPath, "w") do f
-#     write(f, JSON.json(data["grids"]))
-#   end
+#   fh2 = GZip.open(gridsPath, "w")
+#   write(fh2, JSON.json(data["grids"]))
+#   close(fh2)
 #   return meshPath, gridsPath
 # end
+
+function saveGZippedMeshAndPlainGrids(fileName::String, data::Dict)
+  initializeFolders()
+  (meshPath, gridsPath) = getStorageFilePathsGZipMeshAndPlainGrids(fileName)
+  fh = GZip.open(meshPath, "w")
+  write(fh, JSON.json(data["mesh"]))
+  close(fh)
+  open(gridsPath, "w") do f
+    write(f, JSON.json(data["grids"]))
+  end
+  return meshPath, gridsPath
+end
