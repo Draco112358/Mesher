@@ -2,7 +2,7 @@ include("voxelizator.jl")
 include("voxelize_internal.jl")
 include("saveFiles.jl")
 include("utility.jl")
-using MeshIO, FileIO, Meshes, MeshBridge, JSON
+using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData
 
 function find_mins_maxs(mesh_object::Mesh)
     bb = boundingbox(mesh_object)
@@ -252,7 +252,7 @@ function create_grids_externals(grids::Dict)::Dict
 end
 
 
-function doMeshing(dictData::Dict, id::String, chan=nothing)
+function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=nothing)
     try
         result = Dict()
         meshes = Dict()
@@ -395,7 +395,8 @@ function doMeshing(dictData::Dict, id::String, chan=nothing)
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
         #end
         if result["isValid"] == true
-            (meshPath, gridsPath) = saveGZippedMeshAndPlainGrids(id, result)
+            # (meshPath, gridsPath) = saveGZippedMeshAndPlainGrids(id, result)
+            (meshPath, gridsPath) = saveOnS3GZippedMeshAndGrids(id, result, aws_config, bucket_name)
             if !isnothing(chan)
                 res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
                 publish_data(res, "mesher_results", chan)

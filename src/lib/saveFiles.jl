@@ -1,4 +1,5 @@
-using JSON, GZip
+module SaveData
+using JSON, GZip, CodecZlib, AWSS3
 
 const esymiaFolderName = "esymiaProjects"
 const meshFolderName = "mesherOutputs"
@@ -72,4 +73,51 @@ function saveGZippedMeshAndPlainGrids(fileName::String, data::Dict)
     write(f, JSON.json(data["grids"]))
   end
   return meshPath, gridsPath
+end
+
+function saveOnS3GZippedMeshAndGrids(fileName::String, data::Dict, aws_config, bucket_name)
+  # initializeFolders()
+  # (meshPath, gridsPath) = getStorageFilePathsGZipMeshAndPlainGrids(fileName)
+  # fh = GZip.open(meshPath, "w")
+  # write(fh, JSON.json(data["mesh"]))
+  # close(fh)
+  # open(gridsPath, "w") do f
+  #   write(f, JSON.json(data["grids"]))
+  # end
+  mesh_id = fileName*"_mesh.json.gz"
+  grids_id = fileName*"_grids.json.gz"
+  if(s3_exists(aws_config, bucket_name, mesh_id))
+    s3_delete(aws_config, bucket_name, mesh_id)
+  end
+  if(s3_exists(aws_config, bucket_name, grids_id))
+    s3_delete(aws_config, bucket_name, grids_id)
+  end
+  upload_json_gz(aws_config, bucket_name, mesh_id, data["mesh"])
+  upload_json_gz(aws_config, bucket_name, grids_id, data["grids"])
+  return mesh_id, grids_id
+end
+
+function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
+  dato_compresso = transcode(GzipCompressor, JSON.json(data_to_save))
+  s3_put(aws_config, bucket_name, file_name, dato_compresso)
+end
+
+function download_json_gz(aws_config, bucket, key)
+  response = s3_get(aws_config, bucket, key)
+  content = transcode(GzipDecompressor, response)
+  GZip.open(key*".tmp.gz", "w") do f
+    write(f, content)
+  end
+  s = IOBuffer()
+  file = gzopen(key*".tmp.gz")
+  while !eof(file)
+    write(s, readline(file))
+  end
+  close(file)
+  Base.Filesystem.rm(key*".tmp.gz", force=true)
+  data2 = String(take!(s))
+  return JSON.parse(data2)
+end
+
+export saveMeshAndGrids, saveGZippedMeshAndPlainGrids, upload_json_gz, download_json_gz, saveOnS3GZippedMeshAndGrids
 end

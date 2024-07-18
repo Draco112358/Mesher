@@ -1,7 +1,8 @@
 include("../src/lib/mesher.jl")
 using Test
 
-@testset let mesher_matrices = Dict(
+@testset "generazione griglie esterne dell'antenna, modello con 2 materiali" begin
+    mesher_matrices = Dict(
         "AntennaDielMaterial" =>
             [
                 [

@@ -1,7 +1,16 @@
-using JSON, Base.Threads, AMQPClient
+using JSON, Base.Threads, AMQPClient, AWS, AWSS3, DotEnv
 # include("lib/saveFiles.jl")
 include("lib/mesher.jl")
 include("lib/utility.jl")
+
+DotEnv.load!()
+
+aws_access_key_id = ENV["AWS_ACCESS_KEY_ID"]
+aws_secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
+aws_region = ENV["AWS_DEFAULT_REGION"]
+aws_bucket_name = ENV["AWS_BUCKET_NAME"]
+creds = AWSCredentials(aws_access_key_id, aws_secret_access_key)
+aws = global_aws_config(; region=aws_region, creds=creds)
 
 const stopComputation = []
 
@@ -9,7 +18,7 @@ const stopComputation = []
 function force_compile2()
   println("------ Precompiling routes...wait for mesher to be ready ---------")
   data = open(JSON.parse, "first_run_data.json")
-  doMeshing(data, "init")
+  doMeshing(data, "init", aws, aws_bucket_name)
   println("MESHER READY")
 end
 
@@ -43,7 +52,7 @@ function receive()
           # result = Dict("quantum" => JSON.json(res), "id" => data["body"]["id"])
           # publish_data(result, "mesh_advices", chan)
         elseif data["message"] == "compute mesh"
-          Threads.@spawn doMeshing(data["body"], data["body"]["fileName"], chan)
+          Threads.@spawn doMeshing(data["body"], data["body"]["fileName"], aws, aws_bucket_name; chan)
           # result = doMeshing(data["body"], data["body"]["fileName"], chan)
           # if result["isValid"] == true
           #   (meshPath, gridsPath) = saveMeshAndGrids(data["body"]["fileName"], result)
@@ -53,12 +62,12 @@ function receive()
           #   results = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "id" => data["body"]["fileName"])
           #   publish_data(results, "mesher_results", chan)
           # end
-        end
-        if data["message"] == "stop"
+        elseif data["message"] == "stop"
           stop_condition[] = 1.0
-        end
-        if data["message"] == "stop computation"
+        elseif data["message"] == "stop computation"
           push!(stopComputation, data["id"])
+        elseif data["message"] == "get grids"
+          Threads.@spawn get_grids_from_s3(aws, aws_bucket_name, chan, data)
         end
       end
 
@@ -73,6 +82,7 @@ function receive()
       end
       # 5. Close the connection
       publish_data(Dict("target" => "mesher", "status" => "idle"), "server_init", chan)
+      sleep(3)
     end
   end
 end
