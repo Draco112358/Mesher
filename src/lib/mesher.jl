@@ -199,8 +199,8 @@ function existABrickInThisPosition(position_coords::CartesianIndex, mesher_matri
         if (existsThisBrickWithMaterial(position_coords, mesher_matrices, mat))
             return true
         end
-        return false
     end
+    return false
 end
 
 function brick_is_on_surface(brick_coords::CartesianIndex, mesher_matrices::Dict, material)::Bool
