@@ -389,12 +389,13 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
 
         mesh_result["mesh_is_valid"] = is_mesh_valid(mesh_result["mesher_matrices"], id, chan)
-
+        
         if is_stopped_computation(id, chan)
             return false
         end
         publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
         println("create grids")
+        externalGrids = Dict()
         if (mesh_result["mesh_is_valid"]["valid"])
             externalGrids = Dict(
                 "externalGrids" => create_grids_externals(mesh_result["mesher_matrices"], id, chan),
