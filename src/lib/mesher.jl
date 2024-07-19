@@ -230,10 +230,15 @@ end
 
 
 
-function create_grids_externals(grids::Dict)::Dict
+function create_grids_externals(grids::Dict, id::String, chan)::Dict
     OUTPUTgrids = Dict()
     for (material, mat) in grids
+        gridsCreationLength = length(mat) * length(mat[1]) * length(mat[1][1])
+        if !isnothing(chan)
+          publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
+        end
         str = ""
+        index = 1
         for cont1 in eachindex(mat)
             for cont2 in eachindex(mat[1])
                 for cont3 in eachindex(mat[1][1])
@@ -242,6 +247,12 @@ function create_grids_externals(grids::Dict)::Dict
                         if brick_is_on_surface(CartesianIndex(cont1, cont2, cont3), grids, material)
                             str = str * "$cont1-$cont2-$cont3\$"
                         end
+                        if index % ceil(gridsCreationLength / 100) == 0
+                          if !isnothing(chan)
+                              publish_data(Dict("gridsCreationValue" => index, "id" => id), "mesher_feedback", chan)
+                          end
+                        end
+                        index += 1
                     end
                 end
             end
@@ -278,7 +289,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         end
 
         geometry_x_bound, geometry_y_bound, geometry_z_bound, geometry_data_object = find_box_dimensions(meshes)
-
+        println("meshingStep 1")
+        publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
 
         if is_stopped_computation(id, chan)
             return false
@@ -312,7 +324,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         #print("GRID:",n_of_cells_x, n_of_cells_y, n_of_cells_z)
 
         cell_size_x, cell_size_y, cell_size_z = find_sizes(n_of_cells_x, n_of_cells_y, n_of_cells_z, geometry_data_object)
-
+        println("meshingStep 2")
+        publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
         if is_stopped_computation(id, chan)
             return false
         end
@@ -341,6 +354,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             mapping_ids_to_materials[counter_stl_files] = Dict("material" => material, "toKeep" => (value["conductivity"] != 0.0) ? true : false)
             counter_stl_files += 1
         end
+        println("meshingStep 3")
+        publish_data(Dict("meshingStep" => 3, "id" => id), "mesher_feedback", chan)
 
         if is_stopped_computation(id, chan)
             return false
@@ -348,7 +363,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
 
         solve_overlapping(n_of_cells_x, n_of_cells_y, n_of_cells_z, mapping_ids_to_materials, mesher_output)
-
+        println("meshingStep 4")
+        publish_data(Dict("meshingStep" => 4, "id" => id), "mesher_feedback", chan)
         origin_x = geometry_data_object["meshXmin"] * 1e-3
         origin_y = geometry_data_object["meshYmin"] * 1e-3
         origin_z = geometry_data_object["meshZmin"] * 1e-3
@@ -377,16 +393,18 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         if is_stopped_computation(id, chan)
             return false
         end
-
+        publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
+        println("create grids")
         if (mesh_result["mesh_is_valid"]["valid"])
             externalGrids = Dict(
-                "externalGrids" => create_grids_externals(mesh_result["mesher_matrices"]),
+                "externalGrids" => create_grids_externals(mesh_result["mesher_matrices"], id, chan),
                 "origin" => "$(mesh_result["origin"]["origin_x"])-$(mesh_result["origin"]["origin_y"])-$(mesh_result["origin"]["origin_z"])",
                 "n_cells" => "$(mesh_result["n_cells"]["n_cells_x"])-$(mesh_result["n_cells"]["n_cells_y"])-$(mesh_result["n_cells"]["n_cells_z"])",
                 # ricordarsi di dividere per 1000 la cell_size quando la importi su esymia, così che il meshedElement la ridivida, per il solito problema di visualizzazione strano.
                 "cell_size" => "$(mesh_result["cell_size"]["cell_size_x"])-$(mesh_result["cell_size"]["cell_size_y"])-$(mesh_result["cell_size"]["cell_size_z"])"
             )
         end
+        println("end create grids")
 
         if is_stopped_computation(id, chan)
             return false
@@ -396,6 +414,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         #end
         if result["isValid"] == true
             # (meshPath, gridsPath) = saveGZippedMeshAndPlainGrids(id, result)
+            println("compress")
+            publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
             (meshPath, gridsPath) = saveOnS3GZippedMeshAndGrids(id, result, aws_config, bucket_name)
             if !isnothing(chan)
                 res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
