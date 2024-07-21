@@ -14458,6 +14458,8 @@ using Test
                 ]
             ]
     )
+    @test collect(keys(mesher_matrices))[1] == "AntennaDielMaterial" || "AntennaCondMaterial"
+    @test length(keys(mesher_matrices)) == 2
     @test existsThisBrickWithMaterial(CartesianIndex(11,11,11), mesher_matrices, "AntennaDielMaterial") == true
     @test brick_touches_the_main_bounding_box(CartesianIndex(11,11,11), mesher_matrices, "AntennaDielMaterial") == false
     @test brick_is_on_surface(CartesianIndex(11,11,11), mesher_matrices, "AntennaDielMaterial") == false

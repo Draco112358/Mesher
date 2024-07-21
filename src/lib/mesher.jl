@@ -156,12 +156,13 @@ function is_brick_valid(brick_coords::CartesianIndex, mesher_matrices::Dict, mat
 end
 
 function is_mesh_valid(mesher_matrices::Dict, id::String, chan)
+    m = collect(keys(mesher_matrices))[1]
+    checkLength = length(mesher_matrices[m]) * length(mesher_matrices[m][1]) * length(mesher_matrices[m][1][1]) * length(keys(mesher_matrices))
+    if !isnothing(chan)
+        publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
+    end
+    index = 1
     for material in keys(mesher_matrices)
-        checkLength = length(mesher_matrices[material]) * length(mesher_matrices[material][1]) * length(mesher_matrices[material][1][1])
-        if !isnothing(chan)
-            publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
-        end
-        index = 1
         for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
             if index % ceil(checkLength / 100) == 0
                 if !isnothing(chan)
@@ -235,7 +236,7 @@ function create_grids_externals(grids::Dict, id::String, chan)::Dict
     for (material, mat) in grids
         gridsCreationLength = length(mat) * length(mat[1]) * length(mat[1][1])
         if !isnothing(chan)
-          publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
+            publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
         end
         str = ""
         index = 1
@@ -248,9 +249,9 @@ function create_grids_externals(grids::Dict, id::String, chan)::Dict
                             str = str * "$cont1-$cont2-$cont3\$"
                         end
                         if index % ceil(gridsCreationLength / 100) == 0
-                          if !isnothing(chan)
-                              publish_data(Dict("gridsCreationValue" => index, "id" => id), "mesher_feedback", chan)
-                          end
+                            if !isnothing(chan)
+                                publish_data(Dict("gridsCreationValue" => index, "id" => id), "mesher_feedback", chan)
+                            end
                         end
                         index += 1
                     end
@@ -389,7 +390,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
 
         mesh_result["mesh_is_valid"] = is_mesh_valid(mesh_result["mesher_matrices"], id, chan)
-        
+
         if is_stopped_computation(id, chan)
             return false
         end
