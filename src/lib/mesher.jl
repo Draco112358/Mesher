@@ -231,34 +231,69 @@ end
 
 
 
-function create_grids_externals(grids::Dict, id::String, chan)::Dict
+function create_grids_externals(grids::Dict, id::String; chan=nothing)
     OUTPUTgrids = Dict()
+    m = collect(keys(grids))[1]
+    gridsCreationLength = length(grids[m]) * length(grids[m][1]) * length(grids[m][1][1]) * length(keys(grids))
+    if !isnothing(chan)
+        publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
+    end
+    index = 1
     for (material, mat) in grids
-        gridsCreationLength = length(mat) * length(mat[1]) * length(mat[1][1])
-        if !isnothing(chan)
-            publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
-        end
         str = ""
-        index = 1
-        for cont1 in eachindex(mat)
-            for cont2 in eachindex(mat[1])
-                for cont3 in eachindex(mat[1][1])
-                    # se il brick esiste e si affaccia su una superficie, lo aggiungiamo alla griglia
-                    if mat[cont1][cont2][cont3]
-                        if brick_is_on_surface(CartesianIndex(cont1, cont2, cont3), grids, material)
-                            str = str * "$cont1-$cont2-$cont3\$"
-                        end
-                        if index % ceil(gridsCreationLength / 100) == 0
-                            if !isnothing(chan)
-                                publish_data(Dict("gridsCreationValue" => index, "id" => id), "mesher_feedback", chan)
-                            end
-                        end
-                        index += 1
+        for cont in CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
+            # se il brick esiste e si affaccia su una superficie, lo aggiungiamo alla griglia
+            if mat[cont[1]][cont[2]][cont[3]]
+                if brick_is_on_surface(cont, grids, material)
+                    str = str * "$(cont[1])-$(cont[2])-$(cont[3])A"
+                end
+                if index % ceil(gridsCreationLength / 100) == 0
+                    if !isnothing(chan)
+                        publish_data(Dict("gridsCreationValue" => index, "id" => id), "mesher_feedback", chan)
                     end
                 end
             end
+            index += 1
         end
         OUTPUTgrids[material] = str[1:end-1]
+    end
+    return OUTPUTgrids
+end
+
+function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
+    OUTPUTgrids = Dict()
+    index = Threads.Atomic{Int64}(1)
+    m = collect(keys(grids))[1]
+    gridsCreationLength = length(grids[m]) * length(grids[m][1]) * length(grids[m][1][1]) * length(keys(grids))
+    if !isnothing(chan)
+        publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
+    end
+    function task_function(chunk, mat, material, gridsCreationLength, index, chan)
+        str = ""
+        for cont in chunk
+            # se il brick esiste e si affaccia su una superficie, lo aggiungiamo alla griglia
+            if mat[cont[1]][cont[2]][cont[3]]
+                if brick_is_on_surface(cont, grids, material)
+                    str = str * "$(cont[1])-$(cont[2])-$(cont[3])A"
+                end
+                if index[] % ceil(gridsCreationLength / 100) == 0
+                    if !isnothing(chan)
+                        publish_data(Dict("gridsCreationValue" => index[], "id" => id), "mesher_feedback", chan)
+                    end
+                end
+            end
+            Threads.atomic_add!(index, 1)
+        end
+        return str
+    end
+    for (material, mat) in grids
+        cartesian_indices = CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
+        index_chunks = Iterators.partition(cartesian_indices, length(cartesian_indices) ÷ Threads.nthreads())
+        tasks = map(index_chunks) do chunk
+            Threads.@spawn task_function(chunk, mat, material, gridsCreationLength, index, chan)
+        end
+        chunk_sums = fetch.(tasks)
+        OUTPUTgrids[material] = join(chunk_sums)[1:end-1]
     end
     return OUTPUTgrids
 end
@@ -399,7 +434,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         externalGrids = Dict()
         if (mesh_result["mesh_is_valid"]["valid"])
             externalGrids = Dict(
-                "externalGrids" => create_grids_externals(mesh_result["mesher_matrices"], id, chan),
+                "externalGrids" => create_grids_externals_parallel(mesh_result["mesher_matrices"], id; chan),
                 "origin" => "$(mesh_result["origin"]["origin_x"])-$(mesh_result["origin"]["origin_y"])-$(mesh_result["origin"]["origin_z"])",
                 "n_cells" => "$(mesh_result["n_cells"]["n_cells_x"])-$(mesh_result["n_cells"]["n_cells_y"])-$(mesh_result["n_cells"]["n_cells_z"])",
                 # ricordarsi di dividere per 1000 la cell_size quando la importi su esymia, così che il meshedElement la ridivida, per il solito problema di visualizzazione strano.
