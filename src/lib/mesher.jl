@@ -198,7 +198,7 @@ function is_mesh_valid_parallel(mesher_matrices::Dict, id::String; chan=nothing)
             if isValid[] > 0
                 break
             end
-            if index[] % ceil(checkLength / 100) == 0
+            if index[] % ceil(checkLength / 100) in 0:3
                 if !isnothing(chan)
                     publish_data(Dict("index" => index[], "id" => id), "mesher_feedback", chan)
                 end
