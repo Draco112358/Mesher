@@ -2,7 +2,7 @@ include("voxelizator.jl")
 include("voxelize_internal.jl")
 include("saveFiles.jl")
 include("utility.jl")
-using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData
+using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData, FLoops
 
 function find_mins_maxs(mesh_object::Mesh)
     bb = boundingbox(mesh_object)
@@ -155,7 +155,7 @@ function is_brick_valid(brick_coords::CartesianIndex, mesher_matrices::Dict, mat
     return Dict("valid" => true, "stopped" => false)
 end
 
-function is_mesh_valid(mesher_matrices::Dict, id::String, chan)
+function is_mesh_valid(mesher_matrices::Dict, id::String; chan=nothing)
     m = collect(keys(mesher_matrices))[1]
     checkLength = length(mesher_matrices[m]) * length(mesher_matrices[m][1]) * length(mesher_matrices[m][1][1]) * length(keys(mesher_matrices))
     if !isnothing(chan)
@@ -169,10 +169,6 @@ function is_mesh_valid(mesher_matrices::Dict, id::String, chan)
                     publish_data(Dict("index" => index, "id" => id), "mesher_feedback", chan)
                 end
             end
-            # if length(stopComputation) > 0
-            #     pop!(stopComputation)
-            #     return Dict("valid" => false, "stopped" => true)
-            # end
             if (mesher_matrices[material][brick_coords[1]][brick_coords[2]][brick_coords[3]])
                 brick_valid = is_brick_valid(brick_coords, mesher_matrices, material)
                 if (!brick_valid["valid"])
@@ -183,6 +179,47 @@ function is_mesh_valid(mesher_matrices::Dict, id::String, chan)
         end
     end
     return Dict("valid" => true)
+end
+
+function is_mesh_valid_parallel(mesher_matrices::Dict, id::String; chan=nothing)
+    m = collect(keys(mesher_matrices))[1]
+    checkLength = length(mesher_matrices[m]) * length(mesher_matrices[m][1]) * length(mesher_matrices[m][1][1]) * length(keys(mesher_matrices))
+    if !isnothing(chan)
+        publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
+    end
+    index = Threads.Atomic{Int64}(1)
+    isValid = Threads.Atomic{Int64}(0)
+    axis = Threads.Atomic{Int64}(0)
+    for material in keys(mesher_matrices)
+        if isValid[] > 0
+            break
+        end
+        @floop for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
+            if isValid[] > 0
+                break
+            end
+            if index[] % ceil(checkLength / 100) == 0
+                if !isnothing(chan)
+                    publish_data(Dict("index" => index[], "id" => id), "mesher_feedback", chan)
+                end
+            end
+            if (mesher_matrices[material][brick_coords[1]][brick_coords[2]][brick_coords[3]])
+                brick_valid = is_brick_valid(brick_coords, mesher_matrices, material)
+                if (!brick_valid["valid"])
+                    if brick_valid["axis"] == "x"
+                        Threads.atomic_add!(isValid, 1)
+                    elseif brick_valid["axis"] == "y"
+                        Threads.atomic_add!(isValid, 2)
+                    else
+                        Threads.atomic_add!(isValid, 3)
+                    end
+                    break
+                end
+            end
+            Threads.atomic_add!(index, 1)
+        end
+    end
+    return Dict("valid" => isValid[] == 0, "axis" => isValid[] == 1 ? "x" : (isValid[] == 2 ? "y" : "z"), "stopped" => false)
 end
 
 function brick_touches_the_main_bounding_box(brick_coords::CartesianIndex, mesher_matrices::Dict, material)::Bool
@@ -424,7 +461,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         end
 
 
-        mesh_result["mesh_is_valid"] = is_mesh_valid(mesh_result["mesher_matrices"], id, chan)
+        mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id; chan)
 
         if is_stopped_computation(id, chan)
             return false
