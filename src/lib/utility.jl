@@ -18,9 +18,9 @@ end
 function get_grids_from_s3(aws, aws_bucket_name::String, chan, data::Dict)
     if (s3_exists(aws, aws_bucket_name, data["grids_id"]))
         grids = download_json_gz(aws, aws_bucket_name, data["grids_id"])
-        result = Dict("grids_id" => data["grids_id"], "grids" => grids, "grids_exist" => true)
+        result = Dict("grids_id" => data["grids_id"], "grids" => grids, "grids_exist" => true, "id" => data["id"])
       else
-        result = Dict("grids_id" => data["grids_id"], "grids" => "", "grids_exist" => false)
+        result = Dict("grids_id" => data["grids_id"], "grids" => "", "grids_exist" => false, "id" => data["id"])
       end
       publish_data(result, "mesher_grids", chan)
 end
