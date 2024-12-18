@@ -2,6 +2,7 @@ using JSON, Base.Threads, AMQPClient, AWS, AWSS3, DotEnv
 # include("lib/saveFiles.jl")
 include("lib/mesher.jl")
 include("lib/utility.jl")
+include("lib/mesher_ris/main.jl")
 
 DotEnv.load!()
 
@@ -11,6 +12,7 @@ aws_region = ENV["AWS_DEFAULT_REGION"]
 aws_bucket_name = ENV["AWS_BUCKET_NAME"]
 creds = AWSCredentials(aws_access_key_id, aws_secret_access_key)
 aws = global_aws_config(; region=aws_region, creds=creds)
+
 
 const stopComputation = []
 
@@ -62,6 +64,9 @@ function receive()
           #   results = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "id" => data["body"]["fileName"])
           #   publish_data(results, "mesher_results", chan)
           # end
+        elseif data["message"] == "compute mesh ris"
+          input = get_risGeometry_from_s3(aws, aws_bucket_name, data["body"]["fileNameRisGeometry"])
+          Threads.@spawn doMeshingRis(input, data["body"]["fileName"], aws, aws_bucket_name; chan)
         elseif data["message"] == "stop"
           stop_condition[] = 1.0
         elseif data["message"] == "stop computation"

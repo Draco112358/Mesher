@@ -40,7 +40,7 @@ function find_block(matrix, nvoxels, visited, x, y, z, j)
     x2, y2, z2 = x, y, z
 
     # Estendi lungo l'asse X
-    while x2 < nx && all(matrix[j,x2 + 1,y:z,z:z]) && !all(visited[j,x2 + 1, y:z, z:z])
+    while x2 < nx && all(matrix[j,x2 + 1,y,z]) && !all(visited[j,x2 + 1, y, z])
         x2 += 1
     end
 
@@ -104,8 +104,8 @@ end
 
 function are_topologies_equivalent(top1, top2)
     # Controlla se i rank sono identici
-    println(length(top1.ranks))
-    println(length(top2.ranks))
+    # println(length(top1.ranks))
+    # println(length(top2.ranks))
     if top1.ranks != top2.ranks
         return false
     end
@@ -113,9 +113,6 @@ function are_topologies_equivalent(top1, top2)
     # Ottieni gli elementi di entrambe le topologie
     elems1 = top1.elms
     elems2 = top2.elms
-
-    println(top1.elms)
-    println(top2.elms)
 
     # Controlla il numero di elementi
     if length(elems1) != length(elems2)
@@ -142,35 +139,58 @@ function checkTopology(meshes_stl_converted, mesh)
     boxes = merge_adjacent_cubes(matrix, nvoxels, cell_size, n_materials, materials)
     meshes = []
     for k in range(1, n_materials)
-        merged_boxes2 = merge_adjacent_boxes(boxes[k])
-        mesh = boxes_to_mesh(merged_boxes2)
+        #merged_boxes2 = merge_adjacent_boxes(boxes[k])
+        mesh = boxes_to_mesh(boxes[k])
         push!(meshes, mesh)
     end
 
     verticesArray = []
     facesArray = []
+    singleMeshes = []
 
     for m in meshes
+        push!(singleMeshes, SimpleMesh(vertices(m), m.topology.connec))
         verticesArray = [verticesArray..., vertices(m)...]
         facesArray = [facesArray..., m.topology.connec...]
     end
 
-    grouped_mesh = SimpleMesh(verticesArray, facesArray)
+    singleMeshesStl = []
 
-    verticesArray2 = []
-    facesArray2 = []
-
-    for mesh_stl_converted in meshes_stl_converted
-        verticesArray2 = [verticesArray2..., vertices(mesh_stl_converted)...]
-        facesArray2 = [facesArray2..., mesh_stl_converted.topology.connec...]
+    for msc in meshes_stl_converted
+        push!(singleMeshesStl, SimpleMesh(vertices(msc), msc.topology.connec))
     end
 
-    grouped_mesh_stl_converted = SimpleMesh(verticesArray2, facesArray2)
+    equal = false
 
-    topology_grouped_mesh = grouped_mesh.topology
-    topology_grouped_mesh_stl_converted = grouped_mesh_stl_converted.topology
+    for (index, sm) in enumerate(singleMeshes)
+        top1 = sm.topology
+        top2 = singleMeshesStl[index].topology
+        println(length(unique(vertices(sm))))
+        println(length(unique(vertices(singleMeshesStl[index]))))
+        println(are_topologies_equivalent(top1, top2))
+        if are_topologies_equivalent(top1, top2)
+            equal = true
+        else
+            equal = false
+        end
+    end
 
-    println("Are topologies equivalent?: ", are_topologies_equivalent(topology_grouped_mesh, topology_grouped_mesh_stl_converted))
+    # grouped_mesh = SimpleMesh(verticesArray, facesArray)
 
-    return are_topologies_equivalent(topology_grouped_mesh, topology_grouped_mesh_stl_converted)
+    # verticesArray2 = []
+    # facesArray2 = []
+
+    # for mesh_stl_converted in meshes_stl_converted
+    #     verticesArray2 = [verticesArray2..., vertices(mesh_stl_converted)...]
+    #     facesArray2 = [facesArray2..., mesh_stl_converted.topology.connec...]
+    # end
+
+    # grouped_mesh_stl_converted = SimpleMesh(verticesArray2, facesArray2)
+
+    # topology_grouped_mesh = grouped_mesh.topology
+    # topology_grouped_mesh_stl_converted = grouped_mesh_stl_converted.topology
+
+    #println("Are topologies equivalent?: ", are_topologies_equivalent(topology_grouped_mesh, topology_grouped_mesh_stl_converted))
+
+    return equal
 end

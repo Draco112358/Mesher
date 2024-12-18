@@ -2,6 +2,7 @@ include("voxelizator.jl")
 include("voxelize_internal.jl")
 include("saveFiles.jl")
 include("utility.jl")
+include("check_topology.jl")
 using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData, FLoops
 
 function find_mins_maxs(mesh_object::Mesh)
@@ -124,6 +125,9 @@ function dump_json_data(filename, o_x::Float64, o_y::Float64, o_z::Float64, cs_x
 
     #@assert count == n_materials+1
     json_dict = Dict("n_materials" => length(id_to_material), "materials" => mats, "origin" => origin, "cell_size" => cell_size, "n_cells" => n_cells, "mesher_matrices" => mesher_matrices_dict)
+    # open("copper_loop.json", "w") do f
+    #     write(f, JSON.json(json_dict))
+    # end
     return json_dict
 end
 
@@ -340,6 +344,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
     try
         result = Dict()
         meshes = Dict()
+        meshes_stl_converted = []
         for geometry in Array{Any}(dictData["STLList"])
             #@assert geometry isa Dict
             mesh_id = geometry["material"]["name"]
@@ -350,7 +355,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             end
             mesh_stl = load("stl.stl")
             mesh_stl_converted = convert(Meshes.Mesh, mesh_stl)
-
+            push!(meshes_stl_converted, mesh_stl_converted)
             #mesh_stl_converted = Meshes.Polytope(3,3,mesh_stl)
             #@assert mesh_stl_converted isa Mesh
             meshes[mesh_id] = Dict("mesh" => mesh_stl_converted, "conductivity" => geometry["material"]["conductivity"])
@@ -456,12 +461,14 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         mesh_result = dump_json_data(json_file_name, origin_x, origin_y, origin_z, cell_size_x, cell_size_y, cell_size_z,
             n_of_cells_x, n_of_cells_y, n_of_cells_z, mesher_output, mapping_ids_to_materials)
 
+        
         if is_stopped_computation(id, chan)
             return false
         end
 
 
         mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id; chan)
+
 
         if is_stopped_computation(id, chan)
             return false
@@ -492,18 +499,18 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
             (meshPath, gridsPath) = saveOnS3GZippedMeshAndGrids(id, result, aws_config, bucket_name)
             if !isnothing(chan)
-                res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => id)
+                res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "validTopology" => checkTopology(meshes_stl_converted, mesh_result), "id" => id)
                 publish_data(res, "mesher_results", chan)
             end
         elseif result["isValid"] == false
             if !isnothing(chan)
-                res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "id" => id)
+                res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "validTopology" => false, "id" => id)
                 publish_data(res, "mesher_results", chan)
             end
         end
     catch e
         if e isa OutOfMemoryError
-            res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => "out of memory")
+            res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "validTopology" => false, "id" => id, "error" => "out of memory")
             publish_data(res, "mesher_results", chan)
             # else
             #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)

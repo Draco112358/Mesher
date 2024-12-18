@@ -1,4 +1,4 @@
-using AMQPClient, AWSS3, .SaveData
+using AMQPClient, AWSS3, .SaveData, JSON
 
 function publish_data(result::Dict, queue::String, chan)
     data = convert(Vector{UInt8}, codeunits(JSON.json(result)))
@@ -23,4 +23,14 @@ function get_grids_from_s3(aws, aws_bucket_name::String, chan, data::Dict)
         result = Dict("grids_id" => data["grids_id"], "grids" => "", "grids_exist" => false, "id" => data["id"])
       end
       publish_data(result, "mesher_grids", chan)
+end
+
+function get_risGeometry_from_s3(aws, aws_bucket_name::String, fileName::String)
+    risGeometry = Dict()
+    if (s3_exists(aws, aws_bucket_name, fileName))
+        response = s3_get(aws, aws_bucket_name, fileName)
+        risGeometry = JSON.parse(String(response))
+        println(risGeometry)
+    end
+    return risGeometry
 end
