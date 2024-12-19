@@ -73,7 +73,8 @@ function discretizza_thermal_rev(Regioni)
         :InternalNodesCommon2FourObjects => [],
         :nodi_esterni_coordinate => [],
         :nodi_interni_coordinate => [],
-        :num_nodi_esterni => 0
+        :num_nodi_esterni => 0,
+        :materials => []
     )
 
     induttanze = Dict(
@@ -190,6 +191,7 @@ function discretizza_thermal_rev(Regioni)
             induttanze[:sigma] = Regioni[:cond][k] * ones(size(celle_ind_k, 1))
             nodi[:sigma] = Regioni[:cond][k] * ones(size(celle_cap_k, 1))
             nodi[:epsr] = Regioni[:epsr][k] * ones(size(celle_cap_k, 1))
+            nodi[:materials] = [Regioni[:materials][k] for i in 1:size(celle_cap_k, 1)]
             sigma_c = Regioni[:cond][k] * ones(size(celle_cap_k, 1))
             nodi[:mur] = Regioni[:mur][k] * ones(size(celle_cap_k, 1))
             mu_m_eq = Regioni[:mu][k] * ones(size(celle_sup_k, 1))
@@ -235,6 +237,7 @@ function discretizza_thermal_rev(Regioni)
             induttanze[:sigma] = [induttanze[:sigma]; Regioni[:cond][k] * ones(size(celle_ind_k, 1))]
             nodi[:sigma] = [nodi[:sigma]; Regioni[:cond][k] * ones(size(celle_cap_k, 1))]
             nodi[:epsr] = [nodi[:epsr]; Regioni[:epsr][k] * ones(size(celle_cap_k, 1))]
+            nodi[:materials] = [nodi[:materials]; [Regioni[:materials][k] for i in 1:size(celle_cap_k, 1)]]
             sigma_c = [sigma_c; Regioni[:cond][k] * ones(size(celle_cap_k, 1))]
             nodi[:mur] = [nodi[:mur]; Regioni[:mur][k] * ones(size(celle_cap_k, 1))]
             mu_m_eq = [mu_m_eq; Regioni[:mu][k] * ones(size(celle_sup_k, 1))]

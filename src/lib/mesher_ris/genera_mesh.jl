@@ -2,6 +2,7 @@ include("discretizza_thermal_rev.jl")
 include("matrice_R_rev.jl")
 include("matrici_selettrici_rev.jl")
 include("genera_parametri_diel_rec_con_rev.jl")
+include("mean_length_rev.jl")
 
 function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
 
@@ -115,7 +116,8 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
         :normale => nodi[:normale],
         :mur => nodi[:mur],
         :sigma => nodi[:sigma],
-        :epsr => nodi[:epsr]
+        :epsr => nodi[:epsr],
+        :materials => nodi[:materials]
     )
 
     nodi_coord = nodi[:centri] * scalamento

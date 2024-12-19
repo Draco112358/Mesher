@@ -1,4 +1,4 @@
-using AMQPClient, AWSS3, .SaveData, JSON
+using AMQPClient, AWSS3, .SaveData, JSON, OrderedCollections
 
 function publish_data(result::Dict, queue::String, chan)
     data = convert(Vector{UInt8}, codeunits(JSON.json(result)))
@@ -26,11 +26,24 @@ function get_grids_from_s3(aws, aws_bucket_name::String, chan, data::Dict)
 end
 
 function get_risGeometry_from_s3(aws, aws_bucket_name::String, fileName::String)
-    risGeometry = Dict()
+    resposnse_dict = Dict()
     if (s3_exists(aws, aws_bucket_name, fileName))
         response = s3_get(aws, aws_bucket_name, fileName)
-        risGeometry = JSON.parse(String(response))
-        println(risGeometry)
+        resposnse_dict = to_standard_dict(response)
+        println(resposnse_dict)
     end
-    return risGeometry
+    return resposnse_dict
+end
+
+function to_standard_dict(data)
+    if isa(data, OrderedCollections.LittleDict)
+        # Convert the LittleDict to Dict, applying the function recursively
+        return Dict(k => to_standard_dict(v) for (k, v) in data)
+    elseif isa(data, AbstractArray)
+        # If it's an array, apply the function to each element
+        return map(to_standard_dict, data)
+    else
+        # For other types, return as is
+        return data
+    end
 end

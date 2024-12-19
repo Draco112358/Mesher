@@ -7,7 +7,7 @@ function crea_regioni(bricks, bricks_material, materials)
     coord = zeros(N, 24)
 
     for k in 1:N
-        coord = aggiungiBlocco(coord, k, bricks[k, 1], bricks[k, 2], bricks[k, 3], bricks[k, 4], bricks[k, 5], bricks[k, 6])
+        coord = aggiungiBlocco(coord, k, bricks[k][1], bricks[k][2], bricks[k][3], bricks[k][4], bricks[k][5], bricks[k][6])
     end
 
     # Solve overlapping and coordinate system transformation
@@ -20,7 +20,7 @@ function crea_regioni(bricks, bricks_material, materials)
         :epsr => zeros(Nnew),
         :mu => zeros(Nnew),
         :mur => zeros(Nnew),
-        :materiale => zeros(Nnew)
+        :materials => ["" for i in range(1, Nnew)]
     )
 
     # Case for conductors
@@ -34,7 +34,7 @@ function crea_regioni(bricks, bricks_material, materials)
             Regioni[:epsr][st:en] .= materials[k][:eps_re]
             Regioni[:mu][st:en] .= 4 * π * 1e-7 * materials[k][:mur]
             Regioni[:mur][st:en] .= materials[k][:mur]
-            Regioni[:materiale][st:en] .= k
+            Regioni[:materials][st:en] .= materials[k][:name]
             st = en + 1
         end
     end
@@ -49,7 +49,7 @@ function crea_regioni(bricks, bricks_material, materials)
             Regioni[:epsr][st:en] .= materials[k][:eps_re]
             Regioni[:mu][st:en] .= 4 * π * 1e-7 * materials[k][:mur]
             Regioni[:mur][st:en] .= materials[k][:mur]
-            Regioni[:materiale][st:en] .= k
+            Regioni[:materials][st:en] .= materials[k][:name]
             st = en + 1
         end
     end

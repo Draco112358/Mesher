@@ -65,6 +65,7 @@ function receive()
           #   publish_data(results, "mesher_results", chan)
           # end
         elseif data["message"] == "compute mesh ris"
+          println(data)
           input = get_risGeometry_from_s3(aws, aws_bucket_name, data["body"]["fileNameRisGeometry"])
           Threads.@spawn doMeshingRis(input, data["body"]["fileName"], aws, aws_bucket_name; chan)
         elseif data["message"] == "stop"
