@@ -30,7 +30,6 @@ function get_risGeometry_from_s3(aws, aws_bucket_name::String, fileName::String)
     if (s3_exists(aws, aws_bucket_name, fileName))
         response = s3_get(aws, aws_bucket_name, fileName)
         resposnse_dict = to_standard_dict(response)
-        println(resposnse_dict)
     end
     return resposnse_dict
 end

@@ -1,6 +1,6 @@
 include("verifica_patches_coincidenti.jl")
 
-function elimina_patches_interni_thermal_save(nodi_centri, nodi_centri_non_rid, nodi_estremi_celle, nodi_epsr, nodi_mur, nodi_sigma, nodi_nodi_i, nodi_w, nodi_l, nodi_S_non_rid, nodi_num_nodi_interni, nodi_normale, Vettaux)
+function elimina_patches_interni_thermal_save(nodi_centri, nodi_centri_non_rid, nodi_estremi_celle, nodi_epsr, nodi_materials, nodi_mur, nodi_sigma, nodi_nodi_i, nodi_w, nodi_l, nodi_S_non_rid, nodi_num_nodi_interni, nodi_normale, Vettaux)
     ncelle_cap = size(nodi_estremi_celle, 1)  # size(nodi_centri, 1)
     ncelle_cap_non_rid = ncelle_cap  # size(nodi_centri_non_rid, 1)
     da_scartare_sup_term = []
@@ -71,11 +71,12 @@ function elimina_patches_interni_thermal_save(nodi_centri, nodi_centri_non_rid, 
     nodi_new_sigma = nodi_sigma[da_conservare]
     nodi_new_mur = nodi_mur[da_conservare]
     nodi_new_epsr = nodi_epsr[da_conservare]
+    nodi_new_materials = nodi_materials[da_conservare]
     nodi_new_nodi_interni_coordinate = nodi_nodi_i
     nodi_new_num_nodi_interni = nodi_num_nodi_interni
     nodi_new_nodi_esterni = 1:length(da_conservare)
 
-    return nodi_new_centri, nodi_new_centri_non_rid, nodi_new_estremi_celle, nodi_new_w, nodi_new_l, nodi_new_S_non_rid, nodi_new_epsr, nodi_new_sigma, nodi_new_mur, nodi_new_nodi_interni_coordinate, nodi_new_num_nodi_interni, nodi_new_nodi_esterni, nodi_new_normale
+    return nodi_new_centri, nodi_new_centri_non_rid, nodi_new_estremi_celle, nodi_new_w, nodi_new_l, nodi_new_S_non_rid, nodi_new_epsr, nodi_new_materials, nodi_new_sigma, nodi_new_mur, nodi_new_nodi_interni_coordinate, nodi_new_num_nodi_interni, nodi_new_nodi_esterni, nodi_new_normale
 end
 
 function setdiff3(m, n)

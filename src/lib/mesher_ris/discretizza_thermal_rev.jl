@@ -317,11 +317,10 @@ function discretizza_thermal_rev(Regioni)
     end
 
     # Call function to remove internal patches
-    nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:epsr], nodi[:sigma], nodi[:mur], nodi[:nodi_interni_coordinate], nodi[:num_nodi_interni], nodi[:nodi_esterni], nodi[:normale] = 
+    nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:epsr], nodi[:materials], nodi[:sigma], nodi[:mur], nodi[:nodi_interni_coordinate], nodi[:num_nodi_interni], nodi[:nodi_esterni], nodi[:normale] = 
         elimina_patches_interni_thermal_save(
-            nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:epsr], nodi[:mur], nodi[:sigma], nodi[:nodi_i], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:num_nodi_interni], nodi[:normale], 1
+            nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:epsr], nodi[:materials], nodi[:mur], nodi[:sigma], nodi[:nodi_i], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:num_nodi_interni], nodi[:normale], 1
         )
-
     # If no internal nodes, clear internal nodes
     if nodi[:num_nodi_interni] == 0
         nodi[:nodi_i] = []
@@ -366,6 +365,8 @@ function discretizza_thermal_rev(Regioni)
 
     # Call function to generate data for inductive surfaces
     induttanze = genera_dati_Z_sup(induttanze)
+
+    dump(nodi[:materials])
 
     println("End discretization")
     return induttanze, nodi, A
