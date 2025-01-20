@@ -9,7 +9,7 @@ function genera_nodi_interni_rev(xyz, Npuntix, Npuntiy, Npuntiz)
     ri = reshape(xyz, 3, 8)  # Reshaping xyz into a 3x8 matrix
     rmi, rai, rbi, rci, rabi, rbci, raci, rabci = interpolating_vectors_rev(ri)
 
-    rp = zeros(Int64(Npuntiz), Int64(Npuntiy), Int64(Npuntix), 3)  # Initialize rp as a 4D array
+    rp = zeros(max(Int64(Npuntiz), Int64(Npuntix)), Int64(Npuntiy), max(Int64(Npuntiz), Int64(Npuntix)), 3)  # Initialize rp as a 4D array
     for n in 1:Int64(Npuntiz)
         for m in 1:Int64(Npuntiy)
             for l in 1:Int64(Npuntix)
@@ -24,11 +24,11 @@ function genera_nodi_interni_rev(xyz, Npuntix, Npuntiy, Npuntiz)
     end
 
     # Identify internal nodes
-    Nodi_interni = []
+    Nodi_interni = zeros(0, 3)
     for o in 2:Int64(Npuntiz)-1
         for n in 2:Int64(Npuntiy)-1
             for m in 2:Int64(Npuntix)-1
-                push!(Nodi_interni, transpose(squeeze(rp[m, n, o, :])))
+                Nodi_interni = vcat(Nodi_interni, transpose(squeeze(rp[m, n, o, :])))
             end
         end
     end

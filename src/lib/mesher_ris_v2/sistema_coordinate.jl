@@ -6,7 +6,6 @@ function sistema_coordinate(coord, materiale)
     nBarre = size(coord, 1)
     coord = round_ud(coord, 10)
     new_coord = coord
-    
     if nBarre > 1
         continua = 1
         c1 = 1
@@ -16,7 +15,6 @@ function sistema_coordinate(coord, materiale)
             while continua == 1 && c2 <= nBarre
                 if c1 != c2
                     cutted, a, b, c, inverted, c_o1, c_o2 = verifyTouchObj(coord[c1, :], coord[c2, :])
-                    
                     if cutted == 1
                         if inverted == 0
                             auxCord = taglia(coord[c1, :], a, b, c, c_o1)

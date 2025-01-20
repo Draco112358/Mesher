@@ -24,10 +24,11 @@ function FindInternalNodesCommon2FourObjects_rev(nodi_centri, NodiRed)
                     push!(InternalNodes, NodiRed[m, :])
                 else
                     l = findall(!iszero,
-                        (abs.(NodiRed[m, 1] .- InternalNodes[:][1]) .<= 1e-10) .&&
-                        (abs.(NodiRed[m, 2] .- InternalNodes[:][2]) .<= 1e-10) .&&
-                        (abs,(NodiRed[m, 3] .- InternalNodes[:][3]) .<= 1e-10)
+                        (abs.(NodiRed[m, 1] .- InternalNodes[:, 1]) .<= 1e-10) .&&
+                        (abs.(NodiRed[m, 2] .- InternalNodes[:, 2]) .<= 1e-10) .&&
+                        (abs,(NodiRed[m, 3] .- InternalNodes[:, 3]) .<= 1e-10)
                     )
+                    
                     if isempty(l)
                         push!(InternalNodes, NodiRed[m, :])
                     end

@@ -40,27 +40,30 @@ function split_overlapping(barra1, barra2, mat1, mat2, materiale_dominante)
     # Final overlap check
     isOverlapped = overllapped_x * overllapped_y * overllapped_z
 
+
     # Combine the two bars into barre_out and mat_out
     barre_out = vcat(barra1, barra2)
     mat_out = vcat(mat1, mat2)
 
     if isOverlapped == 1
         # Calculate intersection coordinates
-        x1_inter = maximum(x1, x3)
-        x2_inter = minimum(x2, x4)
-        y1_inter = maximum(y1, y3)
-        y2_inter = minimum(y2, y4)
-        z1_inter = maximum(z1, z3)
-        z2_inter = minimum(z2, z4)
+        x1_inter = max(x1, x3)
+        x2_inter = min(x2, x4)
+        y1_inter = max(y1, y3)
+        y2_inter = min(y2, y4)
+        z1_inter = max(z1, z3)
+        z2_inter = min(z2, z4)
+
 
         # Create the overlapping portion of the bar
         barra_overlapping = zeros(1, 24)
-        barra_overlapping[[1, 7, 13, 19]] .= minimum(x1_inter, x2_inter)
-        barra_overlapping[[4, 10, 16, 22]] .= maximum(x1_inter, x2_inter)
-        barra_overlapping[[2, 5, 14, 17]] .= minimum(y1_inter, y2_inter)
-        barra_overlapping[[8, 11, 20, 23]] .= maximum(y1_inter, y2_inter)
-        barra_overlapping[[3, 6, 9, 12]] .= minimum(z1_inter, z2_inter)
-        barra_overlapping[[15, 18, 21, 24]] .= maximum(z1_inter, z2_inter)
+        barra_overlapping[[1, 7, 13, 19]] .= min(x1_inter, x2_inter)
+        barra_overlapping[[4, 10, 16, 22]] .= max(x1_inter, x2_inter)
+        barra_overlapping[[2, 5, 14, 17]] .= min(y1_inter, y2_inter)
+        barra_overlapping[[8, 11, 20, 23]] .= max(y1_inter, y2_inter)
+        barra_overlapping[[3, 6, 9, 12]] .= min(z1_inter, z2_inter)
+        barra_overlapping[[15, 18, 21, 24]] .= max(z1_inter, z2_inter)
+
 
         # Determine which bar to split
         if mat1 == materiale_dominante
@@ -77,29 +80,29 @@ function split_overlapping(barra1, barra2, mat1, mat2, materiale_dominante)
 
         # Split along the x-direction
         barre = spezza_x(barra_to_split, x1_inter, x2_inter)
-
         N = size(barre, 1)
         coord = zeros(0, 24)
-
         # Split along the y-direction
         for cont in 1:N
-            append!(coord, spezza_y(barre[cont, :], y1_inter, y2_inter))
+            y = spezza_y(barre[cont, :], y1_inter, y2_inter)
+            coord = vcat(coord, y)
+            #println(size(coord))
         end
 
         N = size(coord, 1)
         barre = zeros(0, 24)
-
         # Split along the z-direction
         for cont in 1:N
-            append!(barre, spezza_z(coord[cont, :], z1_inter, z2_inter))
+            z = spezza_z(coord[cont, :], z1_inter, z2_inter)
+            barre = vcat(barre, z)
         end
 
         N = size(barre, 1)
         to_remove = 0
-
+        barre_out = reshape(barre_out, (size(barre_out, 1) ÷ 24, 24))
         # Remove overlapping portion if it matches
         for cont in 1:N
-            if norm(barra_overlapping - barre[cont, :]) < 1e-10
+            if norm(vec(barra_overlapping) - barre[cont, :]) < 1e-10
                 to_remove = cont
                 break
             end
@@ -111,7 +114,6 @@ function split_overlapping(barra1, barra2, mat1, mat2, materiale_dominante)
             mat_out = vcat(mat_out, ones(N - 1, 1) * mat_to_split)
         end
     end
-
     return barre_out, isOverlapped, mat_out
 end
 
@@ -119,8 +121,9 @@ end
 function spezza_x(barra, x1_inter, x2_inter)
     indici_x = [1, 4, 7, 10, 13, 16, 19, 22]
 
-    x1 = round(1e14 * minimum(barra[indici_x])) / 1e14
-    x2 = round(1e14 * maximum(barra[indici_x])) / 1e14
+    x1 = round(1e15 * minimum(barra[indici_x])) / 1e15
+    x2 = round(1e15 * maximum(barra[indici_x])) / 1e15
+
 
     vect_x = unique(sort([x1, x2, x1_inter, x2_inter]))
     coord = zeros(length(vect_x) - 1, 24)

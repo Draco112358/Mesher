@@ -74,7 +74,7 @@ function discretizza_thermal_rev(Regioni)
         :nodi_esterni_coordinate => [],
         :nodi_interni_coordinate => [],
         :num_nodi_esterni => 0,
-        :materials => []
+        :materials => [],
     )
 
     induttanze = Dict(
@@ -123,11 +123,12 @@ function discretizza_thermal_rev(Regioni)
 
     # Discretizzazione uniforme
     discrUnif = 0
+    
     for k = 1:size(Regioni[:coordinate], 1)
         # Call function to get various variables
         barra_k, celle_cap_k, celle_ind_k, celle_sup_k, lati_k, lati_m_k, vers_k, Nodi_k, spessore_i_k, sup_celle_cap_k, sup_celle_ind_k, sup_celle_sup_k, l_i_k, l_c_k, l_m_k, width_i_k, width_c_k, width_m_k, dir_curr_k, vers_m_k, norm_m_k, celle_ind_sup_k, Sup_sup_k, indici_sup_k, normale_sup_k, dir_curr_sup_k, rc_sup_k, w_sup_k, NodiRed_k = 
             discr_psp_nono_3D_vol_sup_save(Regioni[:coordinate][k, :], Int64(Regioni[:Nx][k]), Int64(Regioni[:Ny][k]), Int64(Regioni[:Nz][k]), discrUnif, weights_five, roots_five)
-        
+        #println("discr_psp_nono_3D_vol_sup_save")
         if k == 1
             #induttanze[:celle_ind_per_oggetto][k] = 1:size(lati_k, 2)
             push!(induttanze[:celle_ind_per_oggetto], 1:size(lati_k, 2))
@@ -138,16 +139,23 @@ function discretizza_thermal_rev(Regioni)
     
         # Generate internal nodes
         Nodi_interni = genera_nodi_interni_rev(Regioni[:coordinate][k, :], Regioni[:Nx][k], Regioni[:Ny][k], Regioni[:Nz][k])
+        #println("genera_nodi_interni_rev")
+        # println(size(Nodi_interni))
+        # println(size(nodi[:nodi_i]))
         nodi[:num_nodi_interni] += size(Nodi_interni, 1)
         if k == 1
             nodi[:nodi_i] = Nodi_interni
         else
-            nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni]
+            if size(Nodi_interni,1) > 0 && size(nodi[:nodi_i],2) > 0 && size(nodi[:nodi_i],1) > 0 && size(Nodi_interni,2) > 0
+                nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni]
+            else
+                nodi[:nodi_i] = Nodi_interni
+            end
         end
-        
+        #println(size(nodi[:nodi_i]))
         
         Nodi_interni_m = genera_nodi_interni_merged_non_ort(Regioni, Nodi_k, k, nodi[:nodi_i])
-        
+        #println("genera_nodi_interni_merged_non_ort")
         for conta = range(1, size(celle_ind_k, 1))
             l_i_k[conta], width_i_k[conta], spessore_i_k[conta], sup_celle_ind_k[conta], vers_k[conta, :] = creaVersore(celle_ind_k[conta, :], dir_curr_k[conta])
             
@@ -206,7 +214,9 @@ function discretizza_thermal_rev(Regioni)
             w_sup = w_sup_k
             indici_sup = indici_sup_k
         else
-            nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni_m]
+            if size(Nodi_interni_m, 1) > 0
+                nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni_m]
+            end
             # Append to the main variables
             barra = [barra; barra_k]
             celle_mag = [celle_mag; celle_ind_k]
@@ -219,11 +229,12 @@ function discretizza_thermal_rev(Regioni)
             lati2 = [lati2; squeeze(lati_k[2, :, :])]
             induttanze[:t] = [induttanze[:t]; spessore_i_k]
             induttanze[:S] = [induttanze[:S]; sup_celle_ind_k]
-            sup_celle_mag = [sup_celle_mag sup_celle_ind_k]
+            sup_celle_mag = vcat(sup_celle_mag, sup_celle_ind_k)
+            #println(size(sup_celle_mag))
             induttanze[:l] = [induttanze[:l]; l_i_k]
             nodi[:l] = [nodi[:l]; l_c_k]
             l_m = [l_m l_m_k]
-            induttanze[:w] = [induttanze[:w] width_i_k]
+            induttanze[:w] = vcat(induttanze[:w], width_i_k)
             nodi[:w] = [nodi[:w]; width_c_k]
             width_m = [width_m width_m_k]
             induttanze[:versori] = [induttanze[:versori]; vers_k]
@@ -257,6 +268,7 @@ function discretizza_thermal_rev(Regioni)
         
         # Update boundary cells
         induttanze[:estremi_lati_oggetti] = genera_estremi_lati_per_oggetto_rev(induttanze[:estremi_lati_oggetti], NodiRed_k, nodi[:nodi_i], squeeze(lati_k[1, :, :]), squeeze(lati_k[2, :, :]), offset)
+        #println("genera_estremi_lati_per_oggetto_rev")
     end
     # Inductive volume faces
     induttanze[:facce_estremi_celle] = celle_ind_sup
@@ -321,13 +333,15 @@ function discretizza_thermal_rev(Regioni)
         elimina_patches_interni_thermal_save(
             nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:epsr], nodi[:materials], nodi[:mur], nodi[:sigma], nodi[:nodi_i], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:num_nodi_interni], nodi[:normale], 1
         )
+    #println("elimina_patches_interni_thermal_save")
     # If no internal nodes, clear internal nodes
     if nodi[:num_nodi_interni] == 0
-        nodi[:nodi_i] = []
+        nodi[:nodi_i] = zeros(0,3)
     end
 
     # Find common internal nodes between 4 objects
     InternalNodesCommon2FourObjects = FindInternalNodesCommon2FourObjects_rev(nodi[:centri], NodiRed)
+    #println("FindInternalNodesCommon2FourObjects_rev")
     # Update center and external/internal nodes
     nodi[:centri_sup_non_rid] = nodi[:centri]
     nodi[:InternalNodesCommon2FourObjects] = InternalNodesCommon2FourObjects
@@ -345,6 +359,7 @@ function discretizza_thermal_rev(Regioni)
     # Compute incidence matrix and other data
     induttanze[:estremi_lati], nodi[:Rv], nodi[:centri], 
     A = matrice_incidenza_rev(induttanze[:coordinate], nodi[:centri], nodi[:nodi_interni_coordinate])
+    #println("matrice_incidenza_rev")
     # Update indices based on epsr
     indexes = findall(x -> x > 1, induttanze[:epsr])
     induttanze[:indici_Nd] = indexes
@@ -364,9 +379,9 @@ function discretizza_thermal_rev(Regioni)
     end
 
     # Call function to generate data for inductive surfaces
+    #println("start genera_dati_Z_sup")
     induttanze = genera_dati_Z_sup(induttanze)
-
-    dump(nodi[:materials])
+    #println("end genera_dati_Z_sup")
 
     println("End discretization")
     return induttanze, nodi, A

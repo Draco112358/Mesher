@@ -2,7 +2,7 @@ using JSON, Base.Threads, AMQPClient, AWS, AWSS3, DotEnv
 # include("lib/saveFiles.jl")
 include("lib/mesher.jl")
 include("lib/utility.jl")
-include("lib/mesher_ris/main.jl")
+include("lib/mesher_ris_v2/main.jl")
 
 DotEnv.load!()
 
@@ -50,22 +50,9 @@ function receive()
         println(data["message"])
         if (data["message"] == "compute suggested quantum")
           Threads.@spawn quantumAdvice(data["body"]; chan)
-          # res = quantumAdvice(data["body"])
-          # result = Dict("quantum" => JSON.json(res), "id" => data["body"]["id"])
-          # publish_data(result, "mesh_advices", chan)
         elseif data["message"] == "compute mesh"
           Threads.@spawn doMeshing(data["body"], data["body"]["fileName"], aws, aws_bucket_name; chan)
-          # result = doMeshing(data["body"], data["body"]["fileName"], chan)
-          # if result["isValid"] == true
-          #   (meshPath, gridsPath) = saveMeshAndGrids(data["body"]["fileName"], result)
-          #   results = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "id" => data["body"]["fileName"])
-          #   publish_data(results, "mesher_results", chan)
-          # elseif result["isValid"] == false
-          #   results = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "id" => data["body"]["fileName"])
-          #   publish_data(results, "mesher_results", chan)
-          # end
         elseif data["message"] == "compute mesh ris"
-          println(data)
           input = get_risGeometry_from_s3(aws, aws_bucket_name, data["body"]["fileNameRisGeometry"])
           Threads.@spawn doMeshingRis(input, data["body"]["fileName"], aws, aws_bucket_name; chan)
         elseif data["message"] == "stop"

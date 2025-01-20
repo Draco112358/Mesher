@@ -1,7 +1,7 @@
 function genera_nodi_interni_merged_non_ort(Regioni, nodi_nodi, primo_ciclo, Nodi_i)
     Nregioni = size(Regioni[:coordinate], 1)
     Nnodi = size(nodi_nodi, 1)
-    Nodi_interni_output = []
+    Nodi_interni_output = zeros(0, 3)
     k = primo_ciclo
     n_nodi_int = size(Nodi_i, 1)
 
@@ -25,13 +25,15 @@ function genera_nodi_interni_merged_non_ort(Regioni, nodi_nodi, primo_ciclo, Nod
                             coinc = 0
                             if n_nodi_int > 0
                                 for k2 in 1:n_nodi_int
+                                    # println(size(nodi_nodi[n, :]))
+                                    # println(size(Nodi_i))
                                     if norm(nodi_nodi[n, :] - Nodi_i[k2, :], 2) < 1e-12
                                         coinc = 1
                                     end
                                 end
                             end
                             if coinc == 0
-                                push!(Nodi_interni_output, nodi_nodi[n, :])
+                                Nodi_interni_output = vcat(Nodi_interni_output, transpose(nodi_nodi[n, :]))
                             end
                         end
                     end

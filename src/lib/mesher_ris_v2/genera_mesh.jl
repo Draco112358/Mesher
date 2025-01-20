@@ -41,7 +41,6 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
     Regioni[:Ny] = zeros(N_reg)
     Regioni[:Nz] = zeros(N_reg)
     Regioni[:centri] = zeros(N_reg, 3)
-
     for p in 1:N_reg
         len = abs(mean_length_rev(Regioni[:coordinate][p, :], 1))
         thickness = abs(mean_length_rev(Regioni[:coordinate][p, :], 3))
@@ -79,7 +78,7 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
     i, j, k = findnz(transpose_nodi_Rv_csc)
 
     incidence_selection = Dict(
-        :Gamma => sparse(i,j,k),
+        :Gamma => sparse(i,j,k,size(A,2),size(nodi[:Rv],1)),
         :mx => length(induttanze[:indici_celle_indx]),
         :my => length(induttanze[:indici_celle_indy]),
         :mz => length(induttanze[:indici_celle_indz])
@@ -92,7 +91,7 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
         :S => induttanze[:S][perm] * scalamento^2,
         :l => induttanze[:l][perm] * scalamento,
         :R => induttanze[:R][perm] / scalamento * escalings[:R],
-        :Cd => induttanze[:Cp][perm] * scalamento * escalings[:Cd],
+        :Cd => !isempty(induttanze[:Cp]) ? induttanze[:Cp][perm] * scalamento * escalings[:Cd] : [],
         :centri => induttanze[:centri][perm, :] * scalamento
     )
 
@@ -117,7 +116,7 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
         :mur => nodi[:mur],
         :sigma => nodi[:sigma],
         :epsr => nodi[:epsr],
-        :materials => nodi[:materials]
+        :materials => nodi[:materials],
     )
 
     nodi_coord = nodi[:centri] * scalamento
