@@ -168,7 +168,7 @@ function discretizza_thermal_rev(Regioni)
         
         nodi[:num_nodi_interni] += size(Nodi_interni_m, 1)
         if k==1
-            nodi[:nodi_i] = Nodi_interni_m
+            nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni_m]
             # Append to the main variables
             barra = barra_k
             celle_mag = celle_ind_k
