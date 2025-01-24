@@ -54,7 +54,7 @@ function receive()
           Threads.@spawn doMeshing(data["body"], data["body"]["fileName"], aws, aws_bucket_name; chan)
         elseif data["message"] == "compute mesh ris"
           input = get_risGeometry_from_s3(aws, aws_bucket_name, data["body"]["fileNameRisGeometry"])
-          Threads.@spawn doMeshingRis(input, data["body"]["fileName"], aws, aws_bucket_name; chan)
+          Threads.@spawn doMeshingRis(input, data["body"]["fileName"], data["body"]["density"], aws, aws_bucket_name; chan)
         elseif data["message"] == "stop"
           stop_condition[] = 1.0
         elseif data["message"] == "stop computation"

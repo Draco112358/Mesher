@@ -3,7 +3,7 @@ include("genera_mesh.jl")
 include("find_nodes_ports_or_le.jl")
 using GZip, CodecZlib, JSON
 
-function doMeshingRis(input::Dict, id, aws_config, bucket_name; chan=nothing)
+function doMeshingRis(input::Dict, id, density, aws_config, bucket_name; chan=nothing)
     bricks = []
     bricks_material = []
     materials = []
@@ -26,9 +26,10 @@ function doMeshingRis(input::Dict, id, aws_config, bucket_name; chan=nothing)
     println("meshingStep1")
     use_escalings = true
     scalamento = 1e-3
-    den = 10
+    den = density
     freq_max = 10e9
     incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials)
+    println("size A: ", size(incidence_selection[:A]))
     publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
     println("meshingStep2")
     result = Dict(
@@ -64,6 +65,7 @@ function saveOnS3GZippedMeshRis(fileName::String, data::Dict, aws_config, bucket
 end
   
 function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
+    println("Uploading ", file_name)
     dato_compresso = transcode(GzipCompressor, JSON.json(data_to_save))
     s3_put(aws_config, bucket_name, file_name, dato_compresso)
 end
