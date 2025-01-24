@@ -21,7 +21,6 @@ function doMeshingRis(input::Dict, id, aws_config, bucket_name; chan=nothing)
     for (index, b) in enumerate(bricks)
         rounded_bricks[index, :] .= round.(b, digits=2)
     end
-    println("Bricks: ", rounded_bricks)
     Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
     publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
     println("meshingStep1")
@@ -29,10 +28,9 @@ function doMeshingRis(input::Dict, id, aws_config, bucket_name; chan=nothing)
     scalamento = 1e-3
     den = 10
     freq_max = 10e9
-    incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings)
+    incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials)
     publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
-    println("meshingStep1")
-    dump(superfici[:estremi_celle])
+    println("meshingStep2")
     result = Dict(
         :mesh => Dict(
             :incidence_selection => incidence_selection,

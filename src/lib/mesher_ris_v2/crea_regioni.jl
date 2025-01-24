@@ -6,7 +6,6 @@ include("solve_overlapping.jl")
 function crea_regioni(bricks, bricks_material, materials)
     N = size(bricks, 1)
     coord = zeros(N, 24)
-    println(N)
     for k in 1:N
         coord = aggiungiBlocco(coord, k, bricks[k, 1], bricks[k, 2], bricks[k, 3], bricks[k, 4], bricks[k, 5], bricks[k, 6])
     end

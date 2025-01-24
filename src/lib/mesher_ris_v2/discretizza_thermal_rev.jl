@@ -9,7 +9,7 @@ include("FindInternalNodesCommon2FourObjects_rev.jl")
 include("matrice_incidenza_rev.jl")
 include("genera_dati_Z_sup.jl")
 
-function discretizza_thermal_rev(Regioni)
+function discretizza_thermal_rev(Regioni, materials)
     println("Start discretization")
 
     weights_five = [0.2369268850, 0.4786286705, 0.5688888889, 0.4786286705, 0.2369268850]
@@ -199,7 +199,7 @@ function discretizza_thermal_rev(Regioni)
             induttanze[:sigma] = Regioni[:cond][k] * ones(size(celle_ind_k, 1))
             nodi[:sigma] = Regioni[:cond][k] * ones(size(celle_cap_k, 1))
             nodi[:epsr] = Regioni[:epsr][k] * ones(size(celle_cap_k, 1))
-            nodi[:materials] = [Regioni[:materials][k] for i in 1:size(celle_cap_k, 1)]
+            nodi[:materials] = [materials[Int64(Regioni[:materials][k])][:name] for i in 1:size(celle_cap_k, 1)]
             sigma_c = Regioni[:cond][k] * ones(size(celle_cap_k, 1))
             nodi[:mur] = Regioni[:mur][k] * ones(size(celle_cap_k, 1))
             mu_m_eq = Regioni[:mu][k] * ones(size(celle_sup_k, 1))
@@ -248,7 +248,7 @@ function discretizza_thermal_rev(Regioni)
             induttanze[:sigma] = [induttanze[:sigma]; Regioni[:cond][k] * ones(size(celle_ind_k, 1))]
             nodi[:sigma] = [nodi[:sigma]; Regioni[:cond][k] * ones(size(celle_cap_k, 1))]
             nodi[:epsr] = [nodi[:epsr]; Regioni[:epsr][k] * ones(size(celle_cap_k, 1))]
-            nodi[:materials] = [nodi[:materials]; [Regioni[:materials][k] for i in 1:size(celle_cap_k, 1)]]
+            nodi[:materials] = [nodi[:materials]; [materials[Int64(Regioni[:materials][k])][:name] for i in 1:size(celle_cap_k, 1)]]
             sigma_c = [sigma_c; Regioni[:cond][k] * ones(size(celle_cap_k, 1))]
             nodi[:mur] = [nodi[:mur]; Regioni[:mur][k] * ones(size(celle_cap_k, 1))]
             mu_m_eq = [mu_m_eq; Regioni[:mu][k] * ones(size(celle_sup_k, 1))]
