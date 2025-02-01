@@ -1,6 +1,6 @@
 include("split_overlapping.jl")
 
-function solve_overlapping_new(barre, materiale, materiale_dominante)
+function solve_overlapping_new(barre, materiale, materiali_dominante)
     continua = 1
 
     while continua == 1
@@ -10,7 +10,7 @@ function solve_overlapping_new(barre, materiale, materiale_dominante)
         for cont1 in 1:size(barre, 1)-1
             for cont2 in cont1+1:size(barre, 1)
                 # Call to split_overlapping function
-                barre_split, isOverlapped, materiale_split = split_overlapping(barre[cont1, :], barre[cont2, :], materiale[cont1], materiale[cont2], materiale_dominante)
+                barre_split, isOverlapped, materiale_split = split_overlapping(barre[cont1, :], barre[cont2, :], materiale[cont1], materiale[cont2], materiali_dominante)
                 #println(size(barre_split))
                 if isOverlapped == 1
                     continua = 1

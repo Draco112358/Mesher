@@ -1,4 +1,4 @@
-function split_overlapping(barra1, barra2, mat1, mat2, materiale_dominante)
+function split_overlapping(barra1, barra2, mat1, mat2, materiali_dominante)
     # Indexes for x, y, and z
     indici_x = [1, 4, 7, 10, 13, 16, 19, 22]
     indici_y = [2, 5, 8, 11, 14, 17, 20, 23]
@@ -66,7 +66,7 @@ function split_overlapping(barra1, barra2, mat1, mat2, materiale_dominante)
 
 
         # Determine which bar to split
-        if mat1 == materiale_dominante
+        if mat1 in materiali_dominante
             barre_out = barra1
             mat_out = mat1
             barra_to_split = barra2
