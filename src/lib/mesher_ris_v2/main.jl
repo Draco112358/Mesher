@@ -1,9 +1,9 @@
 include("crea_regioni.jl")
 include("genera_mesh.jl")
 include("find_nodes_ports_or_le.jl")
-using GZip, CodecZlib, JSON
+using GZip, CodecZlib, JSON, Serialization
 
-function doMeshingRis(input::Dict, id, density, aws_config, bucket_name; chan=nothing)
+function doMeshingRis(input::Dict, id, density, freq_max, aws_config, bucket_name; chan=nothing)
     bricks = []
     bricks_material = []
     materials = []
@@ -27,7 +27,6 @@ function doMeshingRis(input::Dict, id, density, aws_config, bucket_name; chan=no
     use_escalings = true
     scalamento = 1e-3
     den = density
-    freq_max = 10e9
     incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials)
     println("size A: ", size(incidence_selection[:A]))
     publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
@@ -41,8 +40,22 @@ function doMeshingRis(input::Dict, id, density, aws_config, bucket_name; chan=no
         ),
         :surface => superfici
     )
+    println("result size : ", Base.summarysize(result)/ (1024^2))
+    io = IOBuffer()
+    # Serialize the variable into the IOBuffer.
+    Serialization.serialize(io, result)
+    # Get the bytes from the IOBuffer.
+    data_bytes = take!(io)
+    println("result size : ", Base.summarysize(data_bytes)/ (1024^2))
+
+    # println("volumi size : ", Base.summarysize(volumi)/ (1024^2))
+    # println("nodi_coord size : ", Base.summarysize(nodi_coord)/ (1024^2))
+    # println("escalings size : ", Base.summarysize(escalings)/ (1024^2))
+    # println("superfici size : ", Base.summarysize(superfici)/ (1024^2))
+
     publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
     (meshPath, surfacePath) = saveOnS3GZippedMeshRis(id, result, aws_config, bucket_name)
+    #(meshPath, surfacePath) = saveOnS3MeshRis(id, result, aws_config, bucket_name)
     res = Dict("mesh" => meshPath, "surface" => surfacePath, "id" => id)
     if !isnothing(chan)
         res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id)
@@ -50,8 +63,9 @@ function doMeshingRis(input::Dict, id, density, aws_config, bucket_name; chan=no
     end
 end
 
+
 function saveOnS3GZippedMeshRis(fileName::String, data::Dict, aws_config, bucket_name)
-    mesh_id = fileName*"_mesh.json.gz"
+    mesh_id = fileName*"_mesh.serialized"
     surface = fileName*"_surface.json.gz"
     if(s3_exists(aws_config, bucket_name, mesh_id))
         s3_delete(aws_config, bucket_name, mesh_id)
@@ -59,7 +73,7 @@ function saveOnS3GZippedMeshRis(fileName::String, data::Dict, aws_config, bucket
     if(s3_exists(aws_config, bucket_name, surface))
         s3_delete(aws_config, bucket_name, surface)
     end
-    upload_json_gz(aws_config, bucket_name, mesh_id, data[:mesh])
+    upload_serialized_data(aws_config, bucket_name, mesh_id, data[:mesh])
     upload_json_gz(aws_config, bucket_name, surface, data[:surface])
     return mesh_id, surface
 end
@@ -70,6 +84,34 @@ function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
     s3_put(aws_config, bucket_name, file_name, dato_compresso)
 end
 
+function upload_serialized_data(aws_config, bucket_name, file_name, data_to_save)
+    println("Uploading ", file_name)
+    io = IOBuffer()
+    # Serialize the variable into the IOBuffer.
+    Serialization.serialize(io, data_to_save)
+    
+    # Get the bytes from the IOBuffer.
+    data_bytes = take!(io)
+    s3_put(aws_config, bucket_name, file_name, data_bytes)
+end
+
+function saveOnS3MeshRis(fileName::String, data::Dict, aws_config, bucket_name)
+    mesh_id = fileName*"_mesh.json"
+    surface = fileName*"_surface.json"
+    if(s3_exists(aws_config, bucket_name, mesh_id))
+        s3_delete(aws_config, bucket_name, mesh_id)
+    end
+    if(s3_exists(aws_config, bucket_name, surface))
+        s3_delete(aws_config, bucket_name, surface)
+    end
+    upload_json_data(aws_config, bucket_name, mesh_id, data[:mesh])
+    upload_json_data(aws_config, bucket_name, surface, data[:surface])
+end
+
+function upload_json_data(aws_config, bucket_name, file_name, data_to_save)
+    println("Uploading ", file_name)
+    s3_put(aws_config, bucket_name, file_name, JSON.json(data_to_save))
+end
 # DotEnv.load!()
 
 # aws_access_key_id = ENV["AWS_ACCESS_KEY_ID"]
@@ -80,3 +122,16 @@ end
 # aws = global_aws_config(; region=aws_region, creds=creds)
 # input = get_risGeometry_from_s3(aws, aws_bucket_name, "p4rEB4dKF4p5EoCtr3K9v9.json")
 # doMeshingRis(input, "test", aws, aws_bucket_name)
+
+function getBytes(x)
+    total = 0;
+    fieldNames = fieldnames(typeof(x));
+    if fieldNames == []
+       return sizeof(x);
+    else
+      for fieldName in fieldNames
+         total += getBytes(getfield(x,fieldName));
+      end
+      return total;
+    end
+ end

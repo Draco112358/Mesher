@@ -120,10 +120,11 @@ function discretizza_thermal_rev(Regioni, materials)
     w_sup = []
     indici_sup = []
     sup_celle_mag=[]
-
+    # dump(Regioni[:Nx])
+    # dump(Regioni[:Ny])
+    # dump(Regioni[:Nz])
     # Discretizzazione uniforme
     discrUnif = 0
-    
     for k = 1:size(Regioni[:coordinate], 1)
         # Call function to get various variables
         barra_k, celle_cap_k, celle_ind_k, celle_sup_k, lati_k, lati_m_k, vers_k, Nodi_k, spessore_i_k, sup_celle_cap_k, sup_celle_ind_k, sup_celle_sup_k, l_i_k, l_c_k, l_m_k, width_i_k, width_c_k, width_m_k, dir_curr_k, vers_m_k, norm_m_k, celle_ind_sup_k, Sup_sup_k, indici_sup_k, normale_sup_k, dir_curr_sup_k, rc_sup_k, w_sup_k, NodiRed_k = 

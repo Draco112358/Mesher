@@ -41,10 +41,17 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, material
     Regioni[:Ny] = zeros(N_reg)
     Regioni[:Nz] = zeros(N_reg)
     Regioni[:centri] = zeros(N_reg, 3)
+    dump(Regioni[:coordinate])
     for p in 1:N_reg
         len = abs(mean_length_rev(Regioni[:coordinate][p, :], 1))
         thickness = abs(mean_length_rev(Regioni[:coordinate][p, :], 3))
         width = abs(mean_length_rev(Regioni[:coordinate][p, :], 2))
+
+        # println("len: ", len)
+        # println("thickness: ", thickness)
+        # println("width: ", width)
+        # println("lambda: ", lambda)
+
 
         Regioni[:Nx][p] = ceil(Int, len * scalamento / (lambda / den))
         Regioni[:Nx][p] = max(Regioni[:Nx][p], 2)

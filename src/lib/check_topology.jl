@@ -165,9 +165,6 @@ function checkTopology(meshes_stl_converted, mesh)
     for (index, sm) in enumerate(singleMeshes)
         top1 = sm.topology
         top2 = singleMeshesStl[index].topology
-        println(length(unique(vertices(sm))))
-        println(length(unique(vertices(singleMeshesStl[index]))))
-        println(are_topologies_equivalent(top1, top2))
         if are_topologies_equivalent(top1, top2)
             equal = true
         else

@@ -9,7 +9,6 @@ function crea_regioni(bricks, bricks_material, materials)
     for k in 1:N
         coord = aggiungiBlocco(coord, k, bricks[k, 1], bricks[k, 2], bricks[k, 3], bricks[k, 4], bricks[k, 5], bricks[k, 6])
     end
-
     # Solve overlapping and coordinate system transformation
     coord, bricks_material = solve_overlapping_new(coord, bricks_material, 1)
     coord, bricks_material = sistema_coordinate(round_ud(coord, 8), bricks_material)
