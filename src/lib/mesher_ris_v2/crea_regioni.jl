@@ -9,8 +9,19 @@ function crea_regioni(bricks, bricks_material, materials)
     for k in 1:N
         coord = aggiungiBlocco(coord, k, bricks[k, 1], bricks[k, 2], bricks[k, 3], bricks[k, 4], bricks[k, 5], bricks[k, 6])
     end
+<<<<<<< HEAD
+=======
+
+    mat_conductors_index = []
+    for (index, mat) in enumerate(materials)
+        if mat[:sigmar] != 0
+            push!(mat_conductors_index, index)
+        end
+    end
+
+>>>>>>> 7bffcd7116f98e2e7f0faafaa6f6c63e85a0c2b9
     # Solve overlapping and coordinate system transformation
-    coord, bricks_material = solve_overlapping_new(coord, bricks_material, 1)
+    coord, bricks_material = solve_overlapping_new(coord, bricks_material, mat_conductors_index)
     coord, bricks_material = sistema_coordinate(round_ud(coord, 8), bricks_material)
     Nnew = size(coord, 1)
     Regioni = Dict(
