@@ -58,7 +58,7 @@ function doMeshingRis(input::Dict, id, density, freq_max, aws_config, bucket_nam
     #(meshPath, surfacePath) = saveOnS3MeshRis(id, result, aws_config, bucket_name)
     res = Dict("mesh" => meshPath, "surface" => surfacePath, "id" => id)
     if !isnothing(chan)
-        res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id)
+        res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id, "ASize" => [size(incidence_selection[:A])...])
         publish_data(res, "mesher_results", chan)
     end
 end
