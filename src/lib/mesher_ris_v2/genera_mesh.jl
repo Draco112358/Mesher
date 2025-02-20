@@ -41,7 +41,6 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, material
     Regioni[:Ny] = zeros(N_reg)
     Regioni[:Nz] = zeros(N_reg)
     Regioni[:centri] = zeros(N_reg, 3)
-    dump(Regioni[:coordinate])
     for p in 1:N_reg
         len = abs(mean_length_rev(Regioni[:coordinate][p, :], 1))
         thickness = abs(mean_length_rev(Regioni[:coordinate][p, :], 3))
@@ -107,7 +106,7 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, material
         volumi[:indici_dielettrici][k] = findfirst(x -> x == induttanze[:indici_Nd][k], perm)
     end
 
-    volumi[:Zs_part] = induttanze[:Zs_part][perm] / scalamento * escalings[:R]
+    volumi[:Zs_part] = induttanze[:Zs_part][perm] * escalings[:R]
 
     incidence_selection[:A] = A[perm, :]
 
