@@ -6,10 +6,9 @@ function publish_data(result::Dict, queue::String, chan)
     basic_publish(chan, message; exchange="", routing_key=queue)
 end
 
-function is_stopped_computation(id::String, chan)
+function is_stopped_computation(id::String)
     if length(filter(i->i==id, stopComputation)) > 0
         filter!(i->i!=id, stopComputation)
-        publish_data(Dict("id" => id, "isStopped" => true), "mesher_results", chan)
         return true
     end
     return false

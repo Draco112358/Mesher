@@ -198,6 +198,9 @@ function is_mesh_valid_parallel(mesher_matrices::Dict, id::String; chan=nothing)
         if isValid[] > 0
             break
         end
+        if is_stopped_computation(id)
+            return "stopped"
+        end
         @floop for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
             if isValid[] > 0
                 break
@@ -328,6 +331,9 @@ function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
         return str
     end
     for (material, mat) in grids
+        if is_stopped_computation(id)
+            return false
+        end
         cartesian_indices = CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
         index_chunks = Iterators.partition(cartesian_indices, length(cartesian_indices) ÷ Threads.nthreads())
         tasks = map(index_chunks) do chunk
@@ -362,7 +368,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
             Base.Filesystem.rm("stl.stl", force=true)
         end
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
 
@@ -370,7 +376,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         println("meshingStep 1")
         publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
 
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
 
@@ -404,7 +410,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         cell_size_x, cell_size_y, cell_size_z = find_sizes(n_of_cells_x, n_of_cells_y, n_of_cells_z, geometry_data_object)
         println("meshingStep 2")
         publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
         #precision = 0.1
@@ -418,7 +424,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
         mesher_output = fill(false, (length(dictData["STLList"]), n_of_cells_x, n_of_cells_y, n_of_cells_z))
 
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
 
@@ -435,7 +441,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         println("meshingStep 3")
         publish_data(Dict("meshingStep" => 3, "id" => id), "mesher_feedback", chan)
 
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
 
@@ -462,7 +468,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             n_of_cells_x, n_of_cells_y, n_of_cells_z, mesher_output, mapping_ids_to_materials)
 
         
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id)
             return false
         end
 
@@ -470,7 +476,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id; chan)
 
 
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id) || mesh_result["mesh_is_valid"] == "stopped"
             return false
         end
         publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
@@ -487,7 +493,7 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         end
         println("end create grids")
 
-        if is_stopped_computation(id, chan)
+        if is_stopped_computation(id) || externalGrids["externalGrids"] == false
             return false
         end
 

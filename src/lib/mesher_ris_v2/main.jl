@@ -28,6 +28,10 @@ function doMeshingRis(input::Dict, id, density, freq_max, aws_config, bucket_nam
     scalamento = 1e-3
     den = density
     incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials)
+    if incidence_selection == false && volumi == false && superfici == false && nodi_coord == false && escalings == false
+        println("meshing stopped")
+        return false
+    end
     println("size A: ", size(incidence_selection[:A]))
     publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
     println("meshingStep2")
@@ -40,13 +44,13 @@ function doMeshingRis(input::Dict, id, density, freq_max, aws_config, bucket_nam
         ),
         :surface => superfici
     )
-    println("result size : ", Base.summarysize(result)/ (1024^2))
-    io = IOBuffer()
-    # Serialize the variable into the IOBuffer.
-    Serialization.serialize(io, result)
-    # Get the bytes from the IOBuffer.
-    data_bytes = take!(io)
-    println("result size : ", Base.summarysize(data_bytes)/ (1024^2))
+    # println("result size : ", Base.summarysize(result)/ (1024^2))
+    # io = IOBuffer()
+    # # Serialize the variable into the IOBuffer.
+    # Serialization.serialize(io, result)
+    # # Get the bytes from the IOBuffer.
+    # data_bytes = take!(io)
+    # println("result size : ", Base.summarysize(data_bytes)/ (1024^2))
 
     # println("volumi size : ", Base.summarysize(volumi)/ (1024^2))
     # println("nodi_coord size : ", Base.summarysize(nodi_coord)/ (1024^2))

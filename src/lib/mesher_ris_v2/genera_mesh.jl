@@ -70,6 +70,9 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, material
     #debug ok
     # Call discretizzazione function
     induttanze, nodi, A = discretizza_thermal_rev(Regioni, materials)
+    if induttanze == false && nodi == false && A == false
+        return false, false, false , false, false
+    end
 
     induttanze[:indici_celle_indx] = findall(x -> x == 1, induttanze[:dir_curr])
     induttanze[:indici_celle_indy] = findall(x -> x == 2, induttanze[:dir_curr])

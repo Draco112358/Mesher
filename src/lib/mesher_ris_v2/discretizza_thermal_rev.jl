@@ -264,7 +264,9 @@ function discretizza_thermal_rev(Regioni, materials)
             w_sup = [w_sup; w_sup_k]
             indici_sup = [indici_sup indici_sup_k]
         end
-        
+        if is_stopped_computation(id)
+            return false, false, false
+        end
         offset = size(NodiRed, 1)
         
         # Update boundary cells
