@@ -48,6 +48,9 @@ function receive()
         data = JSON.parse(String(msg.data))
         #data = String(msg.data)
         println(data["message"])
+        if data["message"] == "ping"
+          publish_data(Dict("target" => "mesher", "status" => "ready"), "server_init", chan)
+        end
         if (data["message"] == "compute suggested quantum")
           Threads.@spawn quantumAdvice(data["body"]; chan)
         elseif data["message"] == "compute mesh"
@@ -86,6 +89,14 @@ Base.exit_on_sigint(false)
 try
   receive()
 catch ex
+  #nuova connessione con il broker per avvisare il client che il mesher è stato stoppato
+  connection(; virtualhost=VIRTUALHOST, host=HOST) do conn
+    AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
+      publish_data(Dict("target" => "mesher", "status" => "idle"), "server_init", chan)
+    end
+  end
+  sleep(2)
+  println("Shutdown initiated. The 'idle' status should have been published.")
   if ex isa InterruptException
     println("Interrupted")
   else
