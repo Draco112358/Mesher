@@ -3,7 +3,7 @@ include("voxelize_internal.jl")
 include("saveFiles.jl")
 include("utility.jl")
 include("check_topology.jl")
-using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData, FLoops
+using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData, FLoops, JSON3
 
 function find_mins_maxs(mesh_object::Mesh)
     bb = boundingbox(mesh_object)
@@ -149,12 +149,12 @@ function is_brick_valid(brick_coords::CartesianIndex, mesher_matrices::Dict, mat
     brickDown = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2] - 1, brick_coords[3]), mesher_matrices, material)
     brickUp = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2] + 1, brick_coords[3]), mesher_matrices, material)
     if (!brickDown && !brickUp)
-        return return Dict("valid" => false, "axis" => "y", "stopped" => false)
+        return Dict("valid" => false, "axis" => "y", "stopped" => false)
     end
     brickDown = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] - 1), mesher_matrices, material)
     brickUp = existsThisBrickWithMaterial(CartesianIndex(brick_coords[1], brick_coords[2], brick_coords[3] + 1), mesher_matrices, material)
     if (!brickDown && !brickUp)
-        return return Dict("valid" => false, "axis" => "z", "stopped" => false)
+        return Dict("valid" => false, "axis" => "z", "stopped" => false)
     end
     return Dict("valid" => true, "stopped" => false)
 end
@@ -185,48 +185,57 @@ function is_mesh_valid(mesher_matrices::Dict, id::String; chan=nothing)
     return Dict("valid" => true)
 end
 
-function is_mesh_valid_parallel(mesher_matrices::Dict, id::String; chan=nothing)
-    m = collect(keys(mesher_matrices))[1]
-    checkLength = length(mesher_matrices[m]) * length(mesher_matrices[m][1]) * length(mesher_matrices[m][1][1]) * length(keys(mesher_matrices))
-    if !isnothing(chan)
-        publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
-    end
-    index = Threads.Atomic{Int64}(1)
-    isValid = Threads.Atomic{Int64}(0)
-    axis = Threads.Atomic{Int64}(0)
-    for material in keys(mesher_matrices)
-        if isValid[] > 0
-            break
-        end
-        if is_stopped_computation(id)
-            return "stopped"
-        end
-        @floop for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
-            if isValid[] > 0
-                break
+function is_mesh_valid_parallel(mesher_matrices::Dict, id::String)
+    connection(; virtualhost=VIRTUALHOST, host=HOST) do conn
+        # 2. Create a channel to send messages
+        AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
+            m = collect(keys(mesher_matrices))[1]
+            checkLength = length(mesher_matrices[m]) * length(mesher_matrices[m][1]) * length(mesher_matrices[m][1][1]) * length(keys(mesher_matrices))
+            if !isnothing(chan)
+                publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
             end
-            if index[] % ceil(checkLength / 100) in 0:3
-                if !isnothing(chan)
-                    publish_data(Dict("index" => index[], "id" => id), "mesher_feedback", chan)
-                end
-            end
-            if (mesher_matrices[material][brick_coords[1]][brick_coords[2]][brick_coords[3]])
-                brick_valid = is_brick_valid(brick_coords, mesher_matrices, material)
-                if (!brick_valid["valid"])
-                    if brick_valid["axis"] == "x"
-                        Threads.atomic_add!(isValid, 1)
-                    elseif brick_valid["axis"] == "y"
-                        Threads.atomic_add!(isValid, 2)
-                    else
-                        Threads.atomic_add!(isValid, 3)
-                    end
+            #send_rabbitmq_feedback(Dict("length" => checkLength, "id" => id), "mesher_feedback")
+    
+            index = Threads.Atomic{Int64}(1)
+            isValid = Threads.Atomic{Int64}(0)
+            axis = Threads.Atomic{Int64}(0)
+            for material in keys(mesher_matrices)
+                if isValid[] > 0
                     break
                 end
+                if is_stop_requested(id)
+                    println("Meshing $(id) interrotta per richiesta stop.")
+                    return nothing # O un altro valore che indica interruzione
+                end
+                @floop for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
+                    if isValid[] > 0
+                        break
+                    end
+                    if index[] % ceil(checkLength / 100) in 0:3
+                        if !isnothing(chan)
+                            publish_data(Dict("index" => index[], "id" => id), "mesher_feedback", chan)
+                        end
+                    end
+                    if (mesher_matrices[material][brick_coords[1]][brick_coords[2]][brick_coords[3]])
+                        brick_valid = is_brick_valid(brick_coords, mesher_matrices, material)
+                        if (!brick_valid["valid"])
+                            if brick_valid["axis"] == "x"
+                                Threads.atomic_add!(isValid, 1)
+                            elseif brick_valid["axis"] == "y"
+                                Threads.atomic_add!(isValid, 2)
+                            else
+                                Threads.atomic_add!(isValid, 3)
+                            end
+                            break
+                        end
+                    end
+                    Threads.atomic_add!(index, 1)
+                end
             end
-            Threads.atomic_add!(index, 1)
+            return Dict("valid" => isValid[] == 0, "axis" => isValid[] == 1 ? "x" : (isValid[] == 2 ? "y" : "z"), "stopped" => false)
         end
     end
-    return Dict("valid" => isValid[] == 0, "axis" => isValid[] == 1 ? "x" : (isValid[] == 2 ? "y" : "z"), "stopped" => false)
+    
 end
 
 function brick_touches_the_main_bounding_box(brick_coords::CartesianIndex, mesher_matrices::Dict, material)::Bool
@@ -309,9 +318,10 @@ function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
     index = Threads.Atomic{Int64}(1)
     m = collect(keys(grids))[1]
     gridsCreationLength = length(grids[m]) * length(grids[m][1]) * length(grids[m][1][1]) * length(keys(grids))
-    if !isnothing(chan)
-        publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
-    end
+    # if !isnothing(chan)
+    #     publish_data(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback", chan)
+    # end
+    send_rabbitmq_feedback(Dict("gridsCreationLength" => gridsCreationLength, "id" => id), "mesher_feedback")
     function task_function(chunk, mat, material, gridsCreationLength, index, chan)
         str = ""
         for cont in chunk
@@ -320,7 +330,7 @@ function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
                 if brick_is_on_surface(cont, grids, material)
                     str = str * "$(cont[1])-$(cont[2])-$(cont[3])A"
                 end
-                if index[] % ceil(gridsCreationLength / 100) == 0
+                if index[] % ceil(gridsCreationLength / 10) == 0
                     if !isnothing(chan)
                         publish_data(Dict("gridsCreationValue" => index[], "id" => id), "mesher_feedback", chan)
                     end
@@ -330,28 +340,34 @@ function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
         end
         return str
     end
-    for (material, mat) in grids
-        if is_stopped_computation(id)
-            return false
+    connection(; virtualhost=VIRTUALHOST, host=HOST) do conn
+        # 2. Create a channel to send messages
+        AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
+            for (material, mat) in grids
+                if is_stop_requested(id)
+                    println("Meshing $(id) interrotta per richiesta stop.")
+                    return nothing # O un altro valore che indica interruzione
+                end
+                cartesian_indices = CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
+                index_chunks = Iterators.partition(cartesian_indices, length(cartesian_indices) ÷ Threads.nthreads())
+                tasks = map(index_chunks) do chunk
+                    Threads.@spawn task_function(chunk, mat, material, gridsCreationLength, index, chan)
+                end
+                chunk_sums = fetch.(tasks)
+                OUTPUTgrids[material] = join(chunk_sums)[1:end-1]
+            end
         end
-        cartesian_indices = CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
-        index_chunks = Iterators.partition(cartesian_indices, length(cartesian_indices) ÷ Threads.nthreads())
-        tasks = map(index_chunks) do chunk
-            Threads.@spawn task_function(chunk, mat, material, gridsCreationLength, index, chan)
-        end
-        chunk_sums = fetch.(tasks)
-        OUTPUTgrids[material] = join(chunk_sums)[1:end-1]
     end
     return OUTPUTgrids
 end
 
 
-function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=nothing)
+function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
     try
         result = Dict()
         meshes = Dict()
         meshes_stl_converted = []
-        for geometry in Array{Any}(dictData["STLList"])
+        for geometry in dictData["STLList"]
             #@assert geometry isa Dict
             mesh_id = geometry["material"]["name"]
             mesh_stl = geometry["STL"]
@@ -368,16 +384,19 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
             Base.Filesystem.rm("stl.stl", force=true)
         end
-        if is_stopped_computation(id)
-            return false
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
         geometry_x_bound, geometry_y_bound, geometry_z_bound, geometry_data_object = find_box_dimensions(meshes)
         println("meshingStep 1")
-        publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
+        #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
 
-        if is_stopped_computation(id)
-            return false
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
         # grids grainx
@@ -409,9 +428,11 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
         cell_size_x, cell_size_y, cell_size_z = find_sizes(n_of_cells_x, n_of_cells_y, n_of_cells_z, geometry_data_object)
         println("meshingStep 2")
-        publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
-        if is_stopped_computation(id)
-            return false
+        #publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 2, "id" => id), "mesher_feedback")
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
         #precision = 0.1
         #print("CELL SIZE AFTER ADJUSTEMENTS:",(cell_size_x), (cell_size_y), (cell_size_z))
@@ -424,8 +445,9 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
 
         mesher_output = fill(false, (length(dictData["STLList"]), n_of_cells_x, n_of_cells_y, n_of_cells_z))
 
-        if is_stopped_computation(id)
-            return false
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
         mapping_ids_to_materials = Dict()
@@ -439,16 +461,19 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             counter_stl_files += 1
         end
         println("meshingStep 3")
-        publish_data(Dict("meshingStep" => 3, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 3, "id" => id), "mesher_feedback")
+        #publish_data(Dict("meshingStep" => 3, "id" => id), "mesher_feedback", chan)
 
-        if is_stopped_computation(id)
-            return false
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
 
         solve_overlapping(n_of_cells_x, n_of_cells_y, n_of_cells_z, mapping_ids_to_materials, mesher_output)
         println("meshingStep 4")
-        publish_data(Dict("meshingStep" => 4, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 4, "id" => id), "mesher_feedback")
+        # publish_data(Dict("meshingStep" => 4, "id" => id), "mesher_feedback", chan)
         origin_x = geometry_data_object["meshXmin"] * 1e-3
         origin_y = geometry_data_object["meshYmin"] * 1e-3
         origin_z = geometry_data_object["meshZmin"] * 1e-3
@@ -468,23 +493,26 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
             n_of_cells_x, n_of_cells_y, n_of_cells_z, mesher_output, mapping_ids_to_materials)
 
         
-        if is_stopped_computation(id)
-            return false
+        if is_stop_requested(id)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
 
-        mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id; chan)
+        mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id)
 
-
-        if is_stopped_computation(id) || mesh_result["mesh_is_valid"] == "stopped"
-            return false
+        if is_stop_requested(id) || isnothing(mesh_result["mesh_is_valid"])
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
-        publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
+
+        send_rabbitmq_feedback(Dict("gridsCreation" => true, "id" => id), "mesher_feedback")
+        #publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
         println("create grids")
         externalGrids = Dict()
         if (mesh_result["mesh_is_valid"]["valid"])
             externalGrids = Dict(
-                "externalGrids" => create_grids_externals_parallel(mesh_result["mesher_matrices"], id; chan),
+                "externalGrids" => create_grids_externals_parallel(mesh_result["mesher_matrices"], id),
                 "origin" => "$(mesh_result["origin"]["origin_x"])-$(mesh_result["origin"]["origin_y"])-$(mesh_result["origin"]["origin_z"])",
                 "n_cells" => "$(mesh_result["n_cells"]["n_cells_x"])-$(mesh_result["n_cells"]["n_cells_y"])-$(mesh_result["n_cells"]["n_cells_z"])",
                 # ricordarsi di dividere per 1000 la cell_size quando la importi su esymia, così che il meshedElement la ridivida, per il solito problema di visualizzazione strano.
@@ -493,8 +521,9 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         end
         println("end create grids")
 
-        if is_stopped_computation(id) || externalGrids["externalGrids"] == false
-            return false
+        if is_stop_requested(id) || isnothing(externalGrids["externalGrids"])
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing # O un altro valore che indica interruzione
         end
 
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
@@ -502,22 +531,28 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name; chan=not
         if result["isValid"] == true
             # (meshPath, gridsPath) = saveGZippedMeshAndPlainGrids(id, result)
             println("compress")
-            publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
+            #publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
+            send_rabbitmq_feedback(Dict("compress" => true, "id" => id), "mesher_feedback")
             (meshPath, gridsPath) = saveOnS3GZippedMeshAndGrids(id, result, aws_config, bucket_name)
-            if !isnothing(chan)
-                res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "validTopology" => checkTopology(meshes_stl_converted, mesh_result), "id" => id)
-                publish_data(res, "mesher_results", chan)
-            end
+            # if !isnothing(chan)
+            #     res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "validTopology" => checkTopology(meshes_stl_converted, mesh_result), "id" => id)
+            #     publish_data(res, "mesher_results", chan)
+            # end
+            res = Dict("mesh" => meshPath, "grids" => gridsPath, "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => false, "validTopology" => checkTopology(meshes_stl_converted, mesh_result), "id" => id)
+            send_rabbitmq_feedback(res, "mesher_results")
         elseif result["isValid"] == false
-            if !isnothing(chan)
-                res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "validTopology" => false, "id" => id)
-                publish_data(res, "mesher_results", chan)
-            end
+            # if !isnothing(chan)
+            #     res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "validTopology" => false, "id" => id)
+            #     publish_data(res, "mesher_results", chan)
+            # end
+            res = Dict("mesh" => "", "grids" => "", "isValid" => result["mesh"]["mesh_is_valid"], "isStopped" => result["mesh"]["mesh_is_valid"]["stopped"], "validTopology" => false, "id" => id)
+            send_rabbitmq_feedback(res, "mesher_results")
         end
     catch e
         if e isa OutOfMemoryError
             res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "validTopology" => false, "id" => id, "error" => "out of memory")
-            publish_data(res, "mesher_results", chan)
+            #publish_data(res, "mesher_results", chan)
+            send_rabbitmq_feedback(res, "mesher_results")
             # else
             #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
             #     publish_data(res, "mesher_results", chan)
@@ -602,10 +637,12 @@ function quantumAdvice(mesherInput::Dict; chan=nothing)
     q_x = 0.5 * q_x
     q_y = 0.5 * q_y
     q_z = 0.5 * q_z
-    println(JSON.json([q_x, q_y, q_z]))
-    if !isnothing(chan)
-        result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
-        publish_data(result, "mesh_advices", chan)
-    end
+
+    # if !isnothing(chan)
+    #     result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
+    #     publish_data(result, "mesh_advices", chan)
+    # end
+    result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
+    send_rabbitmq_feedback(result, "mesh_advices")
     # return [q_x, q_y, q_z]
 end

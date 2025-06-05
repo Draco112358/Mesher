@@ -4,7 +4,7 @@ include("matrici_selettrici_rev.jl")
 include("genera_parametri_diel_rec_con_rev.jl")
 include("mean_length_rev.jl")
 
-function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials)
+function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials, id)
 
     # Initialize the scaling factors
     escalings = Dict(
@@ -69,9 +69,9 @@ function genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, material
     end
     #debug ok
     # Call discretizzazione function
-    induttanze, nodi, A = discretizza_thermal_rev(Regioni, materials)
-    if induttanze == false && nodi == false && A == false
-        return false, false, false , false, false
+    induttanze, nodi, A = discretizza_thermal_rev(Regioni, materials, id)
+    if isnothing(induttanze) && isnothing(nodi) && isnothing(A)
+        return nothing, nothing, nothing , nothing, nothing
     end
 
     induttanze[:indici_celle_indx] = findall(x -> x == 1, induttanze[:dir_curr])

@@ -14,14 +14,15 @@ function is_stopped_computation(id::String)
     return false
 end
 
-function get_grids_from_s3(aws, aws_bucket_name::String, chan, data::Dict)
+function get_grids_from_s3(aws, aws_bucket_name::String, data::Dict)
     if (s3_exists(aws, aws_bucket_name, data["grids_id"]))
         grids = download_json_gz(aws, aws_bucket_name, data["grids_id"])
         result = Dict("grids_id" => data["grids_id"], "grids" => grids, "grids_exist" => true, "id" => data["id"])
       else
         result = Dict("grids_id" => data["grids_id"], "grids" => "", "grids_exist" => false, "id" => data["id"])
       end
-      publish_data(result, "mesher_grids", chan)
+      #publish_data(result, "mesher_grids", chan)
+      send_rabbitmq_feedback(result, "mesher_grids")
 end
 
 function get_risGeometry_from_s3(aws, aws_bucket_name::String, fileName::String)
@@ -43,5 +44,18 @@ function to_standard_dict(data)
     else
         # For other types, return as is
         return data
+    end
+end
+
+function deep_symbolize_keys(x)
+    if x isa AbstractDict
+        # Create a new Dict with Symbol keys and recursively converted values.
+        return Dict(String(k) => deep_symbolize_keys(v) for (k, v) in x)
+    elseif x isa AbstractVector
+        # Recursively process arrays in case they contain dictionaries.
+        return [deep_symbolize_keys(item) for item in x]
+    else
+        # Return any other value unchanged.
+        return x
     end
 end

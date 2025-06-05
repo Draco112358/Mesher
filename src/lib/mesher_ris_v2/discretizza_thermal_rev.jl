@@ -9,7 +9,7 @@ include("FindInternalNodesCommon2FourObjects_rev.jl")
 include("matrice_incidenza_rev.jl")
 include("genera_dati_Z_sup.jl")
 
-function discretizza_thermal_rev(Regioni, materials)
+function discretizza_thermal_rev(Regioni, materials, id)
     println("Start discretization")
 
     weights_five = [0.2369268850, 0.4786286705, 0.5688888889, 0.4786286705, 0.2369268850]
@@ -264,8 +264,8 @@ function discretizza_thermal_rev(Regioni, materials)
             w_sup = [w_sup; w_sup_k]
             indici_sup = [indici_sup indici_sup_k]
         end
-        if is_stopped_computation(id)
-            return false, false, false
+        if is_stop_requested(id)
+            return nothing, nothing, nothing
         end
         offset = size(NodiRed, 1)
         
