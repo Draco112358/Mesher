@@ -557,6 +557,13 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
             #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
             #     publish_data(res, "mesher_results", chan)
         end
+    finally
+        lock(stop_computation_lock) do
+            if haskey(stopComputation, id)
+                delete!(stopComputation, id)
+                println("Flag di stop per meshing $(id) rimosso.")
+            end
+        end
     end
 end
 

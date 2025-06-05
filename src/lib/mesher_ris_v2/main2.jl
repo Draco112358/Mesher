@@ -4,72 +4,91 @@ include("find_nodes_ports_or_le.jl")
 using GZip, CodecZlib, JSON, Serialization
 
 function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, bucket_name)
-    bricks = []
-    bricks_material = []
-    materials = []
-    for (index, key) in enumerate(input["bricks"])
-        if length(filter(m -> m[:name] == input["bricks"][index]["material"]["name"], materials)) == 0
-            push!(materials, Dict(:name => input["bricks"][index]["material"]["name"], :sigmar => input["bricks"][index]["material"]["conductivity"], :eps_re => input["bricks"][index]["material"]["permittivity"], :tan_D => haskey(input["bricks"][index]["material"], "tangent_delta_conductivity") ? input["bricks"][index]["material"]["tangent_delta_conductivity"] : 0.0, :mur => input["bricks"][index]["material"]["permeability"]))
-            index_new_material = length(materials)
-            for e in input["bricks"][index]["elements"]
-                push!(bricks_material, index_new_material)
-                push!(bricks, e)
+    try
+        bricks = []
+        bricks_material = []
+        materials = []
+        for (index, key) in enumerate(input["bricks"])
+            if length(filter(m -> m[:name] == input["bricks"][index]["material"]["name"], materials)) == 0
+                push!(materials, Dict(:name => input["bricks"][index]["material"]["name"], :sigmar => input["bricks"][index]["material"]["conductivity"], :eps_re => input["bricks"][index]["material"]["permittivity"], :tan_D => haskey(input["bricks"][index]["material"], "tangent_delta_conductivity") ? input["bricks"][index]["material"]["tangent_delta_conductivity"] : 0.0, :mur => input["bricks"][index]["material"]["permeability"]))
+                index_new_material = length(materials)
+                for e in input["bricks"][index]["elements"]
+                    push!(bricks_material, index_new_material)
+                    push!(bricks, e)
+                end
+            end
+        end
+        rounded_bricks = zeros(length(bricks), 6)
+        for (index, b) in enumerate(bricks)
+            rounded_bricks[index, :] .= round.(b, digits=8)
+        end
+        Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
+        #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
+        println("meshingStep1")
+        use_escalings = true
+        scalamento = escal
+        den = density
+        incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials, id)
+        if isnothing(incidence_selection) && isnothing(volumi) && isnothing(superfici) && isnothing(nodi_coord) && isnothing(escalings)
+            println("Meshing $(id) interrotta per richiesta stop.")
+            return nothing
+        end
+        println("size A: ", size(incidence_selection[:A]))
+        #publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("meshingStep" => 2, "id" => id), "mesher_feedback")
+        println("meshingStep2")
+        result = Dict(
+            :mesh => Dict(
+                :incidence_selection => incidence_selection,
+                :volumi => volumi,
+                :nodi_coord => nodi_coord,
+                :escalings => escalings
+            ),
+            :surface => superfici
+        )
+        # println("result size : ", Base.summarysize(result)/ (1024^2))
+        # io = IOBuffer()
+        # # Serialize the variable into the IOBuffer.
+        # Serialization.serialize(io, result)
+        # # Get the bytes from the IOBuffer.
+        # data_bytes = take!(io)
+        # println("result size : ", Base.summarysize(data_bytes)/ (1024^2))
+
+        # println("volumi size : ", Base.summarysize(volumi)/ (1024^2))
+        # println("nodi_coord size : ", Base.summarysize(nodi_coord)/ (1024^2))
+        # println("escalings size : ", Base.summarysize(escalings)/ (1024^2))
+        # println("superfici size : ", Base.summarysize(superfici)/ (1024^2))
+
+        #publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
+        send_rabbitmq_feedback(Dict("compress" => true, "id" => id), "mesher_feedback")
+        (meshPath, surfacePath) = saveOnS3GZippedMeshRis(id, result, aws_config, bucket_name)
+        #(meshPath, surfacePath) = saveOnS3MeshRis(id, result, aws_config, bucket_name)
+        res = Dict("mesh" => meshPath, "surface" => surfacePath, "id" => id)
+        # if !isnothing(chan)
+        #     res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id, "ASize" => [size(incidence_selection[:A])...])
+        #     publish_data(res, "mesher_results", chan)
+        # end
+        res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id, "ASize" => [size(incidence_selection[:A])...])
+        send_rabbitmq_feedback(res, "mesher_results")
+    catch e
+        if e isa OutOfMemoryError
+            res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "validTopology" => false, "id" => id, "error" => "out of memory")
+            #publish_data(res, "mesher_results", chan)
+            send_rabbitmq_feedback(res, "mesher_results")
+            # else
+            #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
+            #     publish_data(res, "mesher_results", chan)
+        end
+        println(e)
+    finally
+        lock(stop_computation_lock) do
+            if haskey(stopComputation, id)
+                delete!(stopComputation, id)
+                println("Flag di stop per meshing $(id) rimosso.")
             end
         end
     end
-    rounded_bricks = zeros(length(bricks), 6)
-    for (index, b) in enumerate(bricks)
-        rounded_bricks[index, :] .= round.(b, digits=8)
-    end
-    Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
-    #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
-    send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
-    println("meshingStep1")
-    use_escalings = true
-    scalamento = escal
-    den = density
-    incidence_selection, volumi, superfici, nodi_coord, escalings = genera_mesh(Regioni, den, freq_max, scalamento, use_escalings, materials, id)
-    if isnothing(incidence_selection) && isnothing(volumi) && isnothing(superfici) && isnothing(nodi_coord) && isnothing(escalings)
-        println("Meshing $(id) interrotta per richiesta stop.")
-        return nothing
-    end
-    println("size A: ", size(incidence_selection[:A]))
-    #publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
-    send_rabbitmq_feedback(Dict("meshingStep" => 2, "id" => id), "mesher_feedback")
-    println("meshingStep2")
-    result = Dict(
-        :mesh => Dict(
-            :incidence_selection => incidence_selection,
-            :volumi => volumi,
-            :nodi_coord => nodi_coord,
-            :escalings => escalings
-        ),
-        :surface => superfici
-    )
-    # println("result size : ", Base.summarysize(result)/ (1024^2))
-    # io = IOBuffer()
-    # # Serialize the variable into the IOBuffer.
-    # Serialization.serialize(io, result)
-    # # Get the bytes from the IOBuffer.
-    # data_bytes = take!(io)
-    # println("result size : ", Base.summarysize(data_bytes)/ (1024^2))
-
-    # println("volumi size : ", Base.summarysize(volumi)/ (1024^2))
-    # println("nodi_coord size : ", Base.summarysize(nodi_coord)/ (1024^2))
-    # println("escalings size : ", Base.summarysize(escalings)/ (1024^2))
-    # println("superfici size : ", Base.summarysize(superfici)/ (1024^2))
-
-    #publish_data(Dict("compress" => true, "id" => id), "mesher_feedback", chan)
-    send_rabbitmq_feedback(Dict("compress" => true, "id" => id), "mesher_feedback")
-    (meshPath, surfacePath) = saveOnS3GZippedMeshRis(id, result, aws_config, bucket_name)
-    #(meshPath, surfacePath) = saveOnS3MeshRis(id, result, aws_config, bucket_name)
-    res = Dict("mesh" => meshPath, "surface" => surfacePath, "id" => id)
-    # if !isnothing(chan)
-    #     res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id, "ASize" => [size(incidence_selection[:A])...])
-    #     publish_data(res, "mesher_results", chan)
-    # end
-    res = Dict("mesh" => meshPath, "surface" => surfacePath, "isValid" => true, "isStopped" => false, "validTopology" => true, "id" => id, "ASize" => [size(incidence_selection[:A])...])
-    send_rabbitmq_feedback(res, "mesher_results")
 end
 
 
