@@ -1,19 +1,41 @@
 using Meshes
 
-function solve_overlapping(n_cells_x,n_cells_y,n_cells_z,id_mat_keep,output_meshing)
-    for c1 in range(1, n_cells_x)
-        for c2 in range(1, n_cells_y)
-            for c3 in range(1, n_cells_z)
-                for k in keys(id_mat_keep)
-                    if output_meshing[k,c1, c2, c3] == true
-                        for k2 in keys(id_mat_keep)
-                            if output_meshing[k2,c1, c2, c3] == true && k!=k2
-                                if id_mat_keep[k]["toKeep"]
-                                    output_meshing[k2, c1, c2, c3] = false
-                                else
-                                    output_meshing[k, c1, c2, c3] = false
-                                end
-                            end
+function solve_overlapping(n_cells_x, n_cells_y, n_cells_z, id_mat_keep, output_meshing)
+    # Get keys outside the loop for efficiency
+    keys_id_mat_keep = collect(keys(id_mat_keep)) # Convert to array for fixed iteration order
+    
+    # Parallelize the outermost "volume" loop
+    # We iterate over all c1, c2, c3 combinations directly
+    # and then process them using @threads.
+    # The total number of iterations is n_cells_x * n_cells_y * n_cells_z
+    total_cells = n_cells_x * n_cells_y * n_cells_z
+    println("total_cells : $(total_cells)")
+
+    Base.Threads.@threads for idx in range(1,total_cells)
+        # Map linear index `idx` back to (c1, c2, c3)
+        c3 = ((idx - 1) % n_cells_z) + 1
+        temp_idx = (idx - 1) ÷ n_cells_z
+        c2 = (temp_idx % n_cells_y) + 1
+        c1 = (temp_idx ÷ n_cells_y) + 1
+
+        # The inner loops remain sequential within each thread's assigned cell
+        for k_idx in range(1,length(keys_id_mat_keep)) # Iterate over keys using indices for fixed order
+            k = keys_id_mat_keep[k_idx]
+            if output_meshing[k, c1, c2, c3] == true
+                for k2_idx in range(1,length(keys_id_mat_keep))
+                    k2 = keys_id_mat_keep[k2_idx]
+                    if output_meshing[k2, c1, c2, c3] == true && k != k2
+                        # IMPORTANT: The original logic here has a potential issue/ambiguity.
+                        # If id_mat_keep[k]["toKeep"] is true, then k2 is set to false.
+                        # If id_mat_keep[k]["toKeep"] is false, then k is set to false.
+                        # This means if k and k2 both evaluate to true in the conditions,
+                        # the result depends on which one is encountered first or on the toKeep flag.
+                        # This needs to be deterministic if your intent is specific.
+                        # For now, we replicate the exact logic:
+                        if id_mat_keep[k]["toKeep"]
+                            output_meshing[k2, c1, c2, c3] = false
+                        else
+                            output_meshing[k, c1, c2, c3] = false
                         end
                     end
                 end
@@ -21,6 +43,28 @@ function solve_overlapping(n_cells_x,n_cells_y,n_cells_z,id_mat_keep,output_mesh
         end
     end
 end
+
+# function solve_overlapping(n_cells_x,n_cells_y,n_cells_z,id_mat_keep,output_meshing)
+#     for c1 in range(1, n_cells_x)
+#         for c2 in range(1, n_cells_y)
+#             for c3 in range(1, n_cells_z)
+#                 for k in keys(id_mat_keep)
+#                     if output_meshing[k,c1, c2, c3] == true
+#                         for k2 in keys(id_mat_keep)
+#                             if output_meshing[k2,c1, c2, c3] == true && k!=k2
+#                                 if id_mat_keep[k]["toKeep"]
+#                                     output_meshing[k2, c1, c2, c3] = false
+#                                 else
+#                                     output_meshing[k, c1, c2, c3] = false
+#                                 end
+#                             end
+#                         end
+#                     end
+#                 end
+#             end
+#         end
+#     end
+# end
 
 function merge_the_3_grids(voxcountX, voxcountY, voxcountZ,gridOUTPUT1,gridOUTPUT2,gridOUTPUT3,gridOUTPUT)
     for c1 in range(1, voxcountX)
