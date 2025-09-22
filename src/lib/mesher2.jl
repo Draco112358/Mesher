@@ -1,19 +1,12 @@
-include("voxelizator.jl")
-include("voxelize_internal.jl")
-include("saveFiles.jl")
-include("utility.jl")
-include("check_topology.jl")
-using MeshIO, FileIO, Meshes, MeshBridge, JSON, .SaveData, FLoops, JSON3
-
-function find_mins_maxs(mesh_object::Mesh)
+function find_mins_maxs(mesh_object::Meshes.Mesh)
     bb = boundingbox(mesh_object)
     #@assert mesh_object isa Mesh
-    minx = coordinates(minimum(bb))[1]
-    maxx = coordinates(maximum(bb))[1]
-    miny = coordinates(minimum(bb))[2]
-    maxy = coordinates(maximum(bb))[2]
-    minz = coordinates(minimum(bb))[3]
-    maxz = coordinates(maximum(bb))[3]
+    minx = Meshes.coordinates(minimum(bb))[1]
+    maxx = Meshes.coordinates(maximum(bb))[1]
+    miny = Meshes.coordinates(minimum(bb))[2]
+    maxy = Meshes.coordinates(maximum(bb))[2]
+    minz = Meshes.coordinates(minimum(bb))[3]
+    maxz = Meshes.coordinates(maximum(bb))[3]
     return minx, maxx, miny, maxy, minz, maxz
 end
 
@@ -375,8 +368,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
             open("stl.stl", "w") do write_file
                 write(write_file, mesh_stl)
             end
-            mesh_stl = load("stl.stl")
-            mesh_stl_converted = convert(Meshes.Mesh, mesh_stl)
+            mesh_stl_converted = loadSTL("stl.stl")
+            #mesh_stl_converted = convert(Meshes.Mesh, mesh_stl)
             push!(meshes_stl_converted, mesh_stl_converted)
             #mesh_stl_converted = Meshes.Polytope(3,3,mesh_stl)
             #@assert mesh_stl_converted isa Mesh
@@ -556,6 +549,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
             # else
             #     res = Dict("mesh" => "", "grids" => "", "isValid" => false, "isStopped" => false, "id" => id, "error" => e)
             #     publish_data(res, "mesher_results", chan)
+        else
+            println(e)
         end
     finally
         lock(stop_computation_lock) do
@@ -567,89 +562,100 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
     end
 end
 
-function quantumAdvice(mesherInput::Dict; chan=nothing)
-    meshes = Dict()
-    for geometry in Array{Any}(mesherInput["STLList"])
-        #@assert geometry isa Dict
-        mesh_id = geometry["material"]["name"]
-        mesh_stl = geometry["STL"]
-        #@assert mesh_id not in meshes
-        open("stl.stl", "w") do write_file
-            write(write_file, mesh_stl)
+function quantumAdvice(mesherInput; chan=nothing)
+    try
+        meshes = Dict()
+        for geometry in Array{Any}(mesherInput["STLList"])
+            #@assert geometry isa Dict
+            mesh_id = geometry["material"]["name"]
+            mesh_stl = geometry["STL"]
+            #@assert mesh_id not in meshes
+            open("stl.stl", "w") do write_file
+                write(write_file, mesh_stl)
+            end
+            # mesh_stl = load("stl.stl")
+            # mesh_stl_converted = convert(Meshes.Mesh, mesh_stl)
+            mesh_stl_converted = loadSTL("stl.stl")
+            mesh_stl_converted = convert(Meshes.Mesh, mesh_stl_converted)
+            meshes[mesh_id] = mesh_stl_converted
+            Base.Filesystem.rm("stl.stl", force=true)
         end
-        mesh_stl = load("stl.stl")
-        mesh_stl_converted = convert(Meshes.Mesh, mesh_stl)
-        meshes[mesh_id] = mesh_stl_converted
-        Base.Filesystem.rm("stl.stl", force=true)
-    end
-    q_x = 100
-    q_y = 100
-    q_z = 100
-    for (key, mesh) in meshes
-        for c = 1:nelements(mesh)
+        q_x = 100
+        q_y = 100
+        q_z = 100
+        for (key, mesh) in meshes
+            for c = 1:nelements(mesh)
 
-            #% t1, t2 e t3 sono i vertici di un triangolo
-            t1 = coordinates(vertices(mesh[c])[1])
-            t2 = coordinates(vertices(mesh[c])[2])
-            t3 = coordinates(vertices(mesh[c])[3])
+                #% t1, t2 e t3 sono i vertici di un triangolo
+                println(vertices(mesh[c]))
+                t1 = Meshes.coordinates(vertices(mesh[c])[1])
+                t2 = Meshes.coordinates(vertices(mesh[c])[2])
+                t3 = Meshes.coordinates(vertices(mesh[c])[3])
 
-            sx = abs(t1[1] - t2[1])
-            if sx > 1e-10 && q_x > sx
-                q_x = sx
-            end
+                sx = abs(t1[1] - t2[1])
+                if sx > 1e-10 && q_x > sx
+                    q_x = sx
+                end
 
-            sx = abs(t1[1] - t3[1])
-            if sx > 1e-10 && q_x > sx
-                q_x = sx
-            end
+                sx = abs(t1[1] - t3[1])
+                if sx > 1e-10 && q_x > sx
+                    q_x = sx
+                end
 
-            sx = abs(t2[1] - t3[1])
-            if sx > 1e-10 && q_x > sx
-                q_x = sx
-            end
+                sx = abs(t2[1] - t3[1])
+                if sx > 1e-10 && q_x > sx
+                    q_x = sx
+                end
 
-            sy = abs(t1[2] - t2[2])
-            if sy > 1e-10 && q_y > sy
-                q_y = sy
-            end
+                sy = abs(t1[2] - t2[2])
+                if sy > 1e-10 && q_y > sy
+                    q_y = sy
+                end
 
-            sy = abs(t1[2] - t3[2])
-            if sy > 1e-10 && q_y > sy
-                q_y = sy
-            end
+                sy = abs(t1[2] - t3[2])
+                if sy > 1e-10 && q_y > sy
+                    q_y = sy
+                end
 
-            sy = abs(t2[2] - t3[2])
-            if sy > 1e-10 && q_y > sy
-                q_y = sy
-            end
+                sy = abs(t2[2] - t3[2])
+                if sy > 1e-10 && q_y > sy
+                    q_y = sy
+                end
 
-            sz = abs(t1[3] - t2[3])
-            if sz > 1e-10 && q_z > sz
-                q_z = sz
-            end
+                sz = abs(t1[3] - t2[3])
+                if sz > 1e-10 && q_z > sz
+                    q_z = sz
+                end
 
-            sz = abs(t1[3] - t3[3])
-            if sz > 1e-10 && q_z > sz
-                q_z = sz
-            end
+                sz = abs(t1[3] - t3[3])
+                if sz > 1e-10 && q_z > sz
+                    q_z = sz
+                end
 
-            sz = abs(t2[3] - t3[3])
-            if sz > 1e-10 && q_z > sz
-                q_z = sz
+                sz = abs(t2[3] - t3[3])
+                if sz > 1e-10 && q_z > sz
+                    q_z = sz
+                end
+
             end
 
         end
+        q_x = 0.5 * q_x
+        q_y = 0.5 * q_y
+        q_z = 0.5 * q_z
 
+        # if !isnothing(chan)
+        #     result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
+        #     publish_data(result, "mesh_advices", chan)
+        # end
+        result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
+        send_rabbitmq_feedback(result, "mesh_advices")
+        # return [q_x, q_y, q_z]
+    catch e
+        println(e)
     end
-    q_x = 0.5 * q_x
-    q_y = 0.5 * q_y
-    q_z = 0.5 * q_z
+end
 
-    # if !isnothing(chan)
-    #     result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
-    #     publish_data(result, "mesh_advices", chan)
-    # end
-    result = Dict("quantum" => JSON.json([q_x, q_y, q_z]), "id" => mesherInput["id"])
-    send_rabbitmq_feedback(result, "mesh_advices")
-    # return [q_x, q_y, q_z]
+function parse_stl_string()
+    
 end

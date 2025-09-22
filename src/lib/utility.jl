@@ -1,5 +1,3 @@
-using AMQPClient, AWSS3, .SaveData, JSON, OrderedCollections
-
 function publish_data(result::Dict, queue::String, chan)
     data = convert(Vector{UInt8}, codeunits(JSON.json(result)))
     message = Message(data, content_type="application/json", delivery_mode=PERSISTENT)
@@ -14,7 +12,7 @@ function is_stopped_computation(id::String)
     return false
 end
 
-function get_grids_from_s3(aws, aws_bucket_name::String, data::Dict)
+function get_grids_from_s3(aws, aws_bucket_name::String, data)
     println(data["grids_id"])
     if (s3_exists(aws, aws_bucket_name, data["grids_id"]))
         grids = download_json_gz(aws, aws_bucket_name, data["grids_id"])

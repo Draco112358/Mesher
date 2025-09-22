@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 function find_pos_min(vect,N)
     min_value=1e30
     pos=0

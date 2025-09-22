@@ -1,10 +1,3 @@
-include("squeeze.jl")
-include("surfa_old.jl")
-include("mean_length_save.jl")
-include("mean_cross_section_Lp.jl")
-include("mean_length_Lp.jl")
-using  LinearAlgebra
-
 function genera_celle_induttive_maglie_save(rp, Npuntix, Npuntiy, Npuntiz, weights_five, roots_five)
     n_celle_ind = Npuntiz * Npuntiy * (Npuntix - 1) + Npuntiz * (Npuntiy - 1) * Npuntix + (Npuntiz - 1) * Npuntiy * Npuntix
     celle_ind = zeros(n_celle_ind, 24)

@@ -1,10 +1,3 @@
-module SaveData
-using JSON, GZip, CodecZlib, AWSS3
-
-const esymiaFolderName = "esymiaProjects"
-const meshFolderName = "mesherOutputs"
-const gridsFolderName = "externalGrids"
-
 function pathSeparator()::String
   separator = ""
   if (Sys.isunix() || Sys.isapple())
@@ -117,7 +110,4 @@ function download_json_gz(aws_config, bucket, key)
   Base.Filesystem.rm(key*".tmp.gz", force=true)
   data2 = String(take!(s))
   return JSON.parse(data2)
-end
-
-export saveMeshAndGrids, saveGZippedMeshAndPlainGrids, upload_json_gz, download_json_gz, saveOnS3GZippedMeshAndGrids
 end

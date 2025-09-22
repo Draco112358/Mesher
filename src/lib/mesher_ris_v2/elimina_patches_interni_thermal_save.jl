@@ -1,5 +1,3 @@
-include("verifica_patches_coincidenti.jl")
-
 function elimina_patches_interni_thermal_save(nodi_centri, nodi_centri_non_rid, nodi_estremi_celle, nodi_epsr, nodi_materials, nodi_mur, nodi_sigma, nodi_nodi_i, nodi_w, nodi_l, nodi_S_non_rid, nodi_num_nodi_interni, nodi_normale, Vettaux)
     ncelle_cap = size(nodi_estremi_celle, 1)  # size(nodi_centri, 1)
     ncelle_cap_non_rid = ncelle_cap  # size(nodi_centri_non_rid, 1)

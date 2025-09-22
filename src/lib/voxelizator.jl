@@ -1,5 +1,3 @@
-using Meshes
-
 function solve_overlapping(n_cells_x, n_cells_y, n_cells_z, id_mat_keep, output_meshing)
     # Get keys outside the loop for efficiency
     keys_id_mat_keep = collect(keys(id_mat_keep)) # Convert to array for fixed iteration order
@@ -89,7 +87,7 @@ function merge_the_3_grids(voxcountX, voxcountY, voxcountZ,gridOUTPUT1,gridOUTPU
     return gridOUTPUT
 end
 
-function voxelize(cells_on_x::Int,cells_on_y::Int,cells_on_z::Int,meshXYZ::Mesh, geometry_desc::Dict)
+function voxelize(cells_on_x::Int,cells_on_y::Int,cells_on_z::Int,meshXYZ::Meshes.Mesh, geometry_desc::Dict)
 
     #@assert cells_on_x isa Int
     #@assert cells_on_y isa Int
@@ -216,21 +214,21 @@ function voxelize(cells_on_x::Int,cells_on_y::Int,cells_on_z::Int,meshXYZ::Mesh,
 
     for (index, p) in enumerate(vertices(meshXYZ))
         if (mod(index, 3) == 1)
-            v0[i,1] = coordinates(p)[1]
-            v0[i,2] = coordinates(p)[2]
-            v0[i,3] = coordinates(p)[3]
+            v0[i,1] = Meshes.coordinates(p)[1]
+            v0[i,2] = Meshes.coordinates(p)[2]
+            v0[i,3] = Meshes.coordinates(p)[3]
             i = i + 1
         end
         if (mod(index, 3) == 2)
-            v1[j,1] = coordinates(p)[1]
-            v1[j,2] = coordinates(p)[2]
-            v1[j,3] = coordinates(p)[3]
+            v1[j,1] = Meshes.coordinates(p)[1]
+            v1[j,2] = Meshes.coordinates(p)[2]
+            v1[j,3] = Meshes.coordinates(p)[3]
             j = j + 1
         end
         if (mod(index, 3) == 0)
-            v2[k,1] = coordinates(p)[1]
-            v2[k,2] = coordinates(p)[2]
-            v2[k,3] = coordinates(p)[3]
+            v2[k,1] = Meshes.coordinates(p)[1]
+            v2[k,2] = Meshes.coordinates(p)[2]
+            v2[k,3] = Meshes.coordinates(p)[3]
             k = k + 1
         end
         #println(coordinates(p))

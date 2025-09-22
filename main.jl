@@ -1,6 +1,8 @@
 using Pkg
-
+ENV["JULIA_APP_BUILD"] = "true"
 Pkg.activate(".")
 Pkg.instantiate()
+ENV["JULIA_APP_BUILD"] = "false"
 
-include("src/mesher_start2.jl")
+using Mesher
+Mesher.julia_main()

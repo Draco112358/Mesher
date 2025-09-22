@@ -1,5 +1,3 @@
-include("distfcm.jl")
-
 function find_nodes_ports_or_le(ports, lumped_elements, nodi_coord, scalamento)
     Np = size(ports[:port_start], 1)
     

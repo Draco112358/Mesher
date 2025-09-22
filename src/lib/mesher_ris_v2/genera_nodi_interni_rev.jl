@@ -1,6 +1,3 @@
-include("squeeze.jl")
-include("interpolating_vectors_rev.jl")
-
 function genera_nodi_interni_rev(xyz, Npuntix, Npuntiy, Npuntiz)
     a = range(-1, 1, Int64(Npuntix))  # linspace in Julia
     b = range(-1, 1, Int64(Npuntiy))

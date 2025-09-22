@@ -1,4 +1,4 @@
-using Meshing, StaticArrays
+#using Meshing, StaticArrays
 include("buildSTL.jl")
 
 # Funzione per unire cubi adiacenti

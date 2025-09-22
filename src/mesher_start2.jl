@@ -1,10 +1,3 @@
-using JSON, Base.Threads, AMQPClient, AWS, AWSS3, DotEnv
-using Genie, Genie.Router, Genie.Renderer.Json, Genie.Requests
-# include("lib/saveFiles.jl")
-include("lib/mesher2.jl")
-include("lib/utility.jl")
-include("lib/mesher_ris_v2/main2.jl")
-
 DotEnv.load!()
 
 aws_access_key_id = ENV["AWS_ACCESS_KEY_ID"]
@@ -14,12 +7,23 @@ aws_bucket_name = ENV["AWS_BUCKET_NAME"]
 creds = AWSCredentials(aws_access_key_id, aws_secret_access_key)
 aws = global_aws_config(; region=aws_region, creds=creds)
 
-Genie.config.run_as_server = true
-Genie.config.cors_headers["Access-Control-Allow-Origin"] = "*"
-# This has to be this way - you should not include ".../*"
-Genie.config.cors_headers["Access-Control-Allow-Headers"] = "Content-Type"
-Genie.config.cors_headers["Access-Control-Allow-Methods"] ="GET,POST,PUT,DELETE,OPTIONS" 
-Genie.config.cors_allowed_origins = ["*"]
+const CORS_HEADERS = [
+    "Access-Control-Allow-Origin" => "*",
+    "Access-Control-Allow-Headers" => "*",
+    "Access-Control-Allow-Methods" => "POST, GET, OPTIONS"
+]
+
+# https://juliaweb.github.io/HTTP.jl/stable/examples/#Cors-Server
+function CorsMiddleware(handler)
+    return function(req::HTTP.Request)
+        # determine if this is a pre-flight request from the browser
+        if HTTP.method(req)=="OPTIONS"
+            return HTTP.Response(200, CORS_HEADERS)  
+        else 
+            return handler(req) # passes the request to the Application
+        end
+    end
+end
 
 const VIRTUALHOST = "/"
 const HOST = "127.0.0.1"
@@ -30,7 +34,7 @@ const HOST = "127.0.0.1"
 # Sarà necessario usare Locks per proteggere l'accesso a queste variabili
 # se più thread/tasks le modificano contemporaneamente.
 # In questo scenario, le modifiche provengono principalmente dai Tasks delle simulazioni
-# e dalle API di Genie.
+# e dalle API di Oxygen.
 # ==============================================================================
 const mesher_overall_status = Ref("ready") # ready, busy, error
 const active_meshing = Dict{String, Dict{String, Any}}() # ID progetto -> {status, progress, start_time, etc.}
@@ -134,15 +138,15 @@ function run_meshing_task(
     end
 end
 
-function setup_genie_routes()
-  route("/meshing", method = "POST") do 
+function setup_Oxygen_routes()
+  @post "/meshing" function(req) 
     try
-      req_data = jsonpayload() # Assume JSON body
+      req_data = Oxygen.json(req) # Assume JSON body
       project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
       meshing_type = get(req_data, "meshingType", "Strandard") # 'Standard', 'Ris'
       lock(meshing_lock) do
           if haskey(active_meshing, project_id)
-              return JSON.json(Dict("error" => "Meshing con ID $project_id già in corso"))
+              return HTTP.Response(500, CORS_HEADERS)
           end
           active_meshing[project_id] = Dict(
               "status" => "pending",
@@ -174,36 +178,35 @@ function setup_genie_routes()
           meshing_type
         )
       end
-      JSON.json(Dict("message" => "Meshing started", "id" => project_id, "status" => "accepted"))
+      HTTP.Response(200, CORS_HEADERS)
     catch e 
       println("Errore nell'avvio della meshing: $(e)")
-      JSON.json(Dict("error" => "Failed to start meshing: $(e)"))
+      HTTP.Response(500, CORS_HEADERS)
     end
   end
-  route("/quantumAdvice", method = "POST") do 
+  @post "/quantumAdvice" function(req) 
     try
-      req_data = jsonpayload()
+      req_data = Oxygen.json(req)
       project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
       Threads.@spawn quantumAdvice(req_data)
-      JSON.json(Dict("message" => "Compute suggested quantum started", "id" => project_id, "status" => "accepted"))
+      HTTP.Response(200, CORS_HEADERS)
     catch e
       println("Errore nel calcolo del quanto suggerito: $(e)")
-      JSON.json(Dict("error" => "Failed to compute suggested quantum: $(e)"))
+      HTTP.Response(500, CORS_HEADERS)
     end
   end
-  route("/getGrids", method = "POST") do 
+  @post "/getGrids" function(req) 
     try
-      req_data = jsonpayload()
-      project_id = get(req_data, "id", "randomid")
-      Threads.@spawn get_grids_from_s3(aws, aws_bucket_name, req_data)
-      JSON.json(Dict("message" => "get grids started", "id" => project_id, "status" => "accepted"))
+      req_data = Oxygen.json(req)
+      get_grids_from_s3(aws, aws_bucket_name, req_data)
+      HTTP.Response(200, CORS_HEADERS)
     catch e
       println("Errore nel recuperare le griglie: $(e)")
-      JSON.json(Dict("error" => "Failed to get grids: $(e)"))
+      HTTP.Response(500, CORS_HEADERS)
     end
   end
-  route("/stop_computation", method = "POST") do
-      meshing_id = params(:meshing_id)
+  @post "/stop_computation" function(req)
+      meshing_id = queryparams(req)["meshing_id"]
       lock(stop_computation_lock) do
           if haskey(active_meshing, meshing_id)
               if !haskey(stopComputation, meshing_id) # Crea il Ref{Bool} se non esiste
@@ -215,10 +218,10 @@ function setup_genie_routes()
               # Opzionale: Invia un feedback immediato al client via RabbitMQ che la richiesta è stata accettata
               #send_rabbitmq_feedback(Dict("id" => meshing_id, "status" => "stopping", "type" => active_meshing[meshing_id]["type"]), "solver_results")
 
-              return JSON.json(Dict("message" => "Stop request for meshing $(meshing_id) acknowledged.", "status" => "stopping"))
+              return HTTP.Response(200, CORS_HEADERS)
           else
               println("Richiesta di stop per meshing $(meshing_id) ma la meshing non è attiva.")
-              return JSON.json(Dict("error" => "Meshing $meshing_id not found or already completed/stopped."))
+              return HTTP.Response(500, CORS_HEADERS)
           end
       end
     end
@@ -234,54 +237,64 @@ end
 # Main execution flow
 # ==============================================================================
 
-function main()
-    # Invia lo stato iniziale del solver tramite RabbitMQ
-    send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "starting"), "server_init")
-    mesher_overall_status[] = "starting"
+function julia_main()
+    is_building_app = get(ENV, "JULIA_APP_BUILD", "false") == "true"
+    if !is_building_app
+        send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "starting"), "server_init")
+        mesher_overall_status[] = "starting"
 
-    # Precompilazione del solver (se lunga, farla qui prima di servire richieste)
-    # force_compile2() # Scommenta se vuoi precompilare all'avvio
+        # Precompilazione del solver (se lunga, farla qui prima di servire richieste)
+        # force_compile2() # Scommenta se vuoi precompilare all'avvio
 
-    println("Configurazione delle rotte Genie...")
-    setup_genie_routes()
+        println("Configurazione delle rotte Oxygen...")
+        setup_Oxygen_routes()
 
-    println("Avvio del server Genie...")
-
-
-    try
-        up(8002, async = true) #con async a true non blocca il thread principale
-        # Invia lo stato "ready" dopo aver avviato Genie e precompilato
-        send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "ready"), "server_init")
-        mesher_overall_status[] = "ready"
-        while true
-          sleep(1)
-        end
-    catch ex
-        if ex isa InterruptException
-            println("Server Genie interrotto da Ctrl-C.")
-        else
-            println("Eccezione durante l'esecuzione del server Genie: $(ex)")
-        end
-    finally
-        println("Server Genie sta per spegnersi. Invio stato 'idle' a RabbitMQ.")
-        send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "idle"), "server_init")
-        mesher_overall_status[] = "idle"
-        exit() # Chiude il processo Julia
+        println("Avvio del server Oxygen...")
     end
+
+    if !is_building_app
+        try
+            serve(middleware=[CorsMiddleware],port=8002, async=true) #con async a true non blocca il thread principale
+            # Invia lo stato "ready" dopo aver avviato Oxygen e precompilato
+            send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "ready"), "server_init")
+            mesher_overall_status[] = "ready"
+            while true
+                sleep(1)
+            end
+        catch ex
+            if ex isa InterruptException
+                println("Server Oxygen interrotto da Ctrl-C.")
+            else
+                println("Eccezione durante l'esecuzione del server Oxygen: $(ex)")
+            end
+        finally
+            println("Server Oxygen sta per spegnersi. Invio stato 'idle' a RabbitMQ.")
+            send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "idle"), "server_init")
+            mesher_overall_status[] = "idle"
+            exit() # Chiude il processo Julia
+        end
+    else
+        println("Processo di PackageCompiler.jl in corso (generazione output). Il mesher non verrà avviato.")
+    end
+    
 end
 
 # Punto di ingresso principale del tuo server
 Base.exit_on_sigint(false) # Non uscire su Ctrl-C immediatamente
 try
-    main()
+    julia_main()
 catch ex
     if ex isa InterruptException
         println("Catturato Ctrl-C nel blocco principale. Chiusura pulita.")
-        send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "idle"), "server_init")
+        if get(ENV, "JULIA_APP_BUILD", "false") != "true"
+            send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "idle"), "server_init")
+        end
         exit()
     else
         println("Eccezione non gestita nel server principale: $(ex)")
-        send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "error", "message" => string(ex)), "server_init")
+        if get(ENV, "JULIA_APP_BUILD", "false") != "true"
+            send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "error", "message" => string(ex)), "server_init")
+        end
         exit()
     end
 end

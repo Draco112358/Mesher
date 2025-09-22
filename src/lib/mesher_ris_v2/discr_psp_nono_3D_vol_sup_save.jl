@@ -1,10 +1,3 @@
-using LinearAlgebra
-include("interpolating_vectors.jl")
-include("squeeze.jl")
-include("genera_celle_capacitive_maglie_save.jl")
-include("genera_celle_induttive_maglie_save.jl")
-include("genera_celle_induttive_sup_maglie_save.jl")
-
 function discr_psp_nono_3D_vol_sup_save(xyz, Npuntix, Npuntiy, Npuntiz, discrUnif, weights_five, roots_five)
     # Generate linspace equivalent in Julia
     a = range(-1, 1, Npuntix)

@@ -1,5 +1,3 @@
-include("split_overlapping.jl")
-
 function solve_overlapping_new(barre, materiale, materiali_dominante)
     continua = 1
 

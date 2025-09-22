@@ -1,5 +1,3 @@
-using MKL
-
 function ComputeMatrixVector(x, w, incidence_selection,
     P_data, Lp_data, Z_self, Yle, invZ, invP, F, resProd)
 

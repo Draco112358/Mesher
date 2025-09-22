@@ -1,7 +1,3 @@
-include("squeeze.jl")
-include("surfa_old.jl")
-include("mean_length_P.jl")
-
 function genera_celle_capacitive_maglie_save(rp, Npuntix, Npuntiy, Npuntiz, weights_five, roots_five)
     n_celle_cap = 2 * (Npuntiy * Npuntix + Npuntiz * Npuntix + Npuntiy * Npuntiz)
     celle_cap = zeros(n_celle_cap, 12)

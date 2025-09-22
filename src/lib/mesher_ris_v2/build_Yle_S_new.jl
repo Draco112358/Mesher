@@ -1,5 +1,3 @@
-using SparseArrays
-
 function build_Yle_S_new(lumped_elements, grounding_nodes, ports, escalings, n, w, val_chiusura, 
                          type_le, R_le, L_le, C_le)
     # Extract node information

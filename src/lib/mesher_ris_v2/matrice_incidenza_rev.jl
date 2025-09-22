@@ -1,5 +1,3 @@
-using SparseArrays
-
 function matrice_incidenza_rev(LatiInd, nodi_centri, nodi_nodi_interni_coordinate)
     NodiCap1 = nodi_centri[1:(size(nodi_centri, 1) - size(nodi_nodi_interni_coordinate, 1)), :]
     NumLatiInd = size(LatiInd[1], 1)

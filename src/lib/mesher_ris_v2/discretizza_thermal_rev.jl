@@ -1,14 +1,3 @@
-include("round_ud.jl")
-include("squeeze.jl")
-include("discr_psp_nono_3D_vol_sup_save.jl")
-include("genera_nodi_interni_rev.jl")
-include("genera_nodi_interni_merged_non_ort.jl")
-include("genera_estremi_lati_per_oggetto_rev.jl")
-include("elimina_patches_interni_thermal_save.jl")
-include("FindInternalNodesCommon2FourObjects_rev.jl")
-include("matrice_incidenza_rev.jl")
-include("genera_dati_Z_sup.jl")
-
 function discretizza_thermal_rev(Regioni, materials, id)
     println("Start discretization")
 

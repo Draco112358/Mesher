@@ -1,17 +1,21 @@
-include("round_ud.jl")
-include("interpolating_vectors.jl")
-include("squeeze.jl")
-
 function sistema_coordinate(coord, materiale)
     nBarre = size(coord, 1)
     coord = round_ud(coord, 10)
     new_coord = coord
+    #Inizializzazione della passata e dei tagli eseguiti
+    passata = 0
+    tagli_eseguiti = 0
     if nBarre > 1
         continua = 1
         c1 = 1
         c2 = c1 + 1
         
         while c1 < nBarre
+            # Ogni volta che il ciclo si resetta (perché è stato fatto un taglio)
+            # significa che inizia una nuova passata.
+            passata += 1
+            println("Inizio Passata $(passata)")
+            tagli_eseguiti = 0
             while continua == 1 && c2 <= nBarre
                 if c1 != c2
                     cutted, a, b, c, inverted, c_o1, c_o2 = verifyTouchObj(coord[c1, :], coord[c2, :])
@@ -31,6 +35,9 @@ function sistema_coordinate(coord, materiale)
                         nBarre -= 1
                         nBarre += size(auxCord, 1)
                         continua = 0
+                        # Incrementa il contatore dei tagli
+                        tagli_eseguiti += 1
+                        println("Taglio effettuato: Passata $(passata), Taglio n.$(tagli_eseguiti)")
                         c1 = 0
                         coord = new_coord
                         materiale = new_materiale
@@ -38,6 +45,10 @@ function sistema_coordinate(coord, materiale)
                     end
                 end
                 c2 += 1
+            end
+            # Se la passata termina senza tagli
+            if c1 == nBarre && continua == 1 && c2 > nBarre
+                println("Taglio effettuato: Passata $(passata), Taglio n.$(tagli_eseguiti)")
             end
             c1 += 1
             c2 = c1 + 1

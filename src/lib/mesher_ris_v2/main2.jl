@@ -1,8 +1,3 @@
-include("crea_regioni.jl")
-include("genera_mesh.jl")
-include("find_nodes_ports_or_le.jl")
-using GZip, CodecZlib, JSON, Serialization
-
 function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, bucket_name)
     try
         bricks = []
@@ -21,7 +16,9 @@ function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, buc
         rounded_bricks = zeros(length(bricks), 6)
         for (index, b) in enumerate(bricks)
             rounded_bricks[index, :] .= round.(b, digits=8)
+            #println(rounded_bricks[index, :])
         end
+        
         Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
         #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
         send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
@@ -106,11 +103,11 @@ function saveOnS3GZippedMeshRis(fileName::String, data::Dict, aws_config, bucket
     return mesh_id, surface
 end
   
-function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
-    println("Uploading ", file_name)
-    dato_compresso = transcode(GzipCompressor, JSON.json(data_to_save))
-    s3_put(aws_config, bucket_name, file_name, dato_compresso)
-end
+# function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
+#     println("Uploading ", file_name)
+#     dato_compresso = transcode(GzipCompressor, JSON.json(data_to_save))
+#     s3_put(aws_config, bucket_name, file_name, dato_compresso)
+# end
 
 function upload_serialized_data(aws_config, bucket_name, file_name, data_to_save)
     println("Uploading ", file_name)

@@ -1,7 +1,3 @@
-include("squeeze.jl")
-include("surfa_old.jl")
-include("mean_length_P.jl")
-
 function genera_celle_induttive_sup_maglie_save(rp, Npuntix, Npuntiy, Npuntiz, weights_five, roots_five)
     #----------------------------------------------------------------------
     # Discretizzazione delle celle di superficie per le correnti magnetiche
