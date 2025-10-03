@@ -511,13 +511,13 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
                 # ricordarsi di dividere per 1000 la cell_size quando la importi su esymia, così che il meshedElement la ridivida, per il solito problema di visualizzazione strano.
                 "cell_size" => "$(mesh_result["cell_size"]["cell_size_x"])-$(mesh_result["cell_size"]["cell_size_y"])-$(mesh_result["cell_size"]["cell_size_z"])"
             )
+            if is_stop_requested(id) || isnothing(externalGrids["externalGrids"])
+                rintln("Meshing $(id) interrotta per richiesta stop.")
+                return nothing # O un altro valore che indica interruzione
+            end
         end
+        
         println("end create grids")
-
-        if is_stop_requested(id) || isnothing(externalGrids["externalGrids"])
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
 
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
         #end
