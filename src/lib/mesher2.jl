@@ -587,7 +587,6 @@ function quantumAdvice(mesherInput; chan=nothing)
             for c = 1:nelements(mesh)
 
                 #% t1, t2 e t3 sono i vertici di un triangolo
-                println(vertices(mesh[c]))
                 t1 = Meshes.coordinates(vertices(mesh[c])[1])
                 t2 = Meshes.coordinates(vertices(mesh[c])[2])
                 t3 = Meshes.coordinates(vertices(mesh[c])[3])

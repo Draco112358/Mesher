@@ -14,7 +14,6 @@ function sistema_coordinate(coord, materiale)
             # Ogni volta che il ciclo si resetta (perché è stato fatto un taglio)
             # significa che inizia una nuova passata.
             passata += 1
-            println("Inizio Passata $(passata)")
             tagli_eseguiti = 0
             while continua == 1 && c2 <= nBarre
                 if c1 != c2
@@ -37,7 +36,6 @@ function sistema_coordinate(coord, materiale)
                         continua = 0
                         # Incrementa il contatore dei tagli
                         tagli_eseguiti += 1
-                        println("Taglio effettuato: Passata $(passata), Taglio n.$(tagli_eseguiti)")
                         c1 = 0
                         coord = new_coord
                         materiale = new_materiale
@@ -48,7 +46,6 @@ function sistema_coordinate(coord, materiale)
             end
             # Se la passata termina senza tagli
             if c1 == nBarre && continua == 1 && c2 > nBarre
-                println("Taglio effettuato: Passata $(passata), Taglio n.$(tagli_eseguiti)")
             end
             c1 += 1
             c2 = c1 + 1

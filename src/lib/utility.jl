@@ -13,7 +13,6 @@ function is_stopped_computation(id::String)
 end
 
 function get_grids_from_s3(aws, aws_bucket_name::String, data)
-    println(data["grids_id"])
     if (s3_exists(aws, aws_bucket_name, data["grids_id"]))
         grids = download_json_gz(aws, aws_bucket_name, data["grids_id"])
         result = Dict("grids_id" => data["grids_id"], "grids" => grids, "grids_exist" => true, "id" => data["id"])

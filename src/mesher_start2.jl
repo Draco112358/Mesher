@@ -26,7 +26,8 @@ function CorsMiddleware(handler)
 end
 
 const VIRTUALHOST = "/"
-const HOST = "127.0.0.1"
+const HOST = "rabbitmq"
+const PORT = 5672
 
 
 # ==============================================================================
@@ -56,7 +57,7 @@ end
 function send_rabbitmq_feedback(data::Dict, routing_key::String)
     try
         # 1. Create a connection to RabbitMQ (on-demand)
-        connection(; virtualhost=VIRTUALHOST, host=HOST) do conn
+        connection(; virtualhost=VIRTUALHOST, host=HOST, port=PORT) do conn
             # 2. Create a channel to send messages
             AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
                 # 3. Publish the message (make it persistent if it's critical)
@@ -238,6 +239,7 @@ end
 # ==============================================================================
 
 function julia_main()
+    println("Threads disponibili: ", Threads.nthreads())
     is_building_app = get(ENV, "JULIA_APP_BUILD", "false") == "true"
     if !is_building_app
         send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "starting"), "server_init")
@@ -254,7 +256,7 @@ function julia_main()
 
     if !is_building_app
         try
-            serve(middleware=[CorsMiddleware],port=8002, async=true) #con async a true non blocca il thread principale
+            serve(middleware=[CorsMiddleware],port=8002, host="0.0.0.0", async=true) #con async a true non blocca il thread principale
             # Invia lo stato "ready" dopo aver avviato Oxygen e precompilato
             send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "ready"), "server_init")
             mesher_overall_status[] = "ready"
