@@ -1,6 +1,6 @@
 module Mesher
 
-using Base.Threads, AMQPClient, AWS, AWSS3, DotEnv, Oxygen, Meshes, GeometryBasics, MeshBridge, FileIO
+using Base.Threads, AMQPClient, AWS, AWSS3, DotEnv, Oxygen, Meshes, GeometryBasics, MeshBridge, FileIO, Distributed
 using JSON, FLoops, JSON3, LinearAlgebra, OrderedCollections, SparseArrays, StaticArrays
 using GZip, CodecZlib, Serialization, HTTP
 include("./lib/utility.jl")

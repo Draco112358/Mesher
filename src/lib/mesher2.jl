@@ -188,17 +188,13 @@ function is_mesh_valid_parallel(mesher_matrices::Dict, id::String)
                 publish_data(Dict("length" => checkLength, "id" => id), "mesher_feedback", chan)
             end
             #send_rabbitmq_feedback(Dict("length" => checkLength, "id" => id), "mesher_feedback")
-    
+
             index = Threads.Atomic{Int64}(1)
             isValid = Threads.Atomic{Int64}(0)
             axis = Threads.Atomic{Int64}(0)
             for material in keys(mesher_matrices)
                 if isValid[] > 0
                     break
-                end
-                if is_stop_requested(id)
-                    println("Meshing $(id) interrotta per richiesta stop.")
-                    return nothing # O un altro valore che indica interruzione
                 end
                 @floop for brick_coords in CartesianIndices((1:length(mesher_matrices[material]), 1:length(mesher_matrices[material][1]), 1:length(mesher_matrices[material][1][1])))
                     if isValid[] > 0
@@ -228,7 +224,7 @@ function is_mesh_valid_parallel(mesher_matrices::Dict, id::String)
             return Dict("valid" => isValid[] == 0, "axis" => isValid[] == 1 ? "x" : (isValid[] == 2 ? "y" : "z"), "stopped" => false)
         end
     end
-    
+
 end
 
 function brick_touches_the_main_bounding_box(brick_coords::CartesianIndex, mesher_matrices::Dict, material)::Bool
@@ -337,10 +333,6 @@ function create_grids_externals_parallel(grids::Dict, id::String; chan=nothing)
         # 2. Create a channel to send messages
         AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true) do chan
             for (material, mat) in grids
-                if is_stop_requested(id)
-                    println("Meshing $(id) interrotta per richiesta stop.")
-                    return nothing # O un altro valore che indica interruzione
-                end
                 cartesian_indices = CartesianIndices((length(mat), length(mat[1]), length(mat[1][1])))
                 index_chunks = Iterators.partition(cartesian_indices, length(cartesian_indices) ÷ Threads.nthreads())
                 tasks = map(index_chunks) do chunk
@@ -377,20 +369,10 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
 
             Base.Filesystem.rm("stl.stl", force=true)
         end
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
-
         geometry_x_bound, geometry_y_bound, geometry_z_bound, geometry_data_object = find_box_dimensions(meshes)
         println("meshingStep 1")
         send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
         #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
-
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
 
         # grids grainx
         # assert type(dictData['quantum'])==list
@@ -423,10 +405,6 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
         println("meshingStep 2")
         #publish_data(Dict("meshingStep" => 2, "id" => id), "mesher_feedback", chan)
         send_rabbitmq_feedback(Dict("meshingStep" => 2, "id" => id), "mesher_feedback")
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
         #precision = 0.1
         #print("CELL SIZE AFTER ADJUSTEMENTS:",(cell_size_x), (cell_size_y), (cell_size_z))
         # if __debug__:
@@ -437,11 +415,6 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
 
 
         mesher_output = fill(false, (length(dictData["STLList"]), n_of_cells_x, n_of_cells_y, n_of_cells_z))
-
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
 
         mapping_ids_to_materials = Dict()
 
@@ -456,12 +429,6 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
         println("meshingStep 3")
         send_rabbitmq_feedback(Dict("meshingStep" => 3, "id" => id), "mesher_feedback")
         #publish_data(Dict("meshingStep" => 3, "id" => id), "mesher_feedback", chan)
-
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
-
 
         solve_overlapping(n_of_cells_x, n_of_cells_y, n_of_cells_z, mapping_ids_to_materials, mesher_output)
         println("meshingStep 4")
@@ -485,19 +452,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
         mesh_result = dump_json_data(json_file_name, origin_x, origin_y, origin_z, cell_size_x, cell_size_y, cell_size_z,
             n_of_cells_x, n_of_cells_y, n_of_cells_z, mesher_output, mapping_ids_to_materials)
 
-        
-        if is_stop_requested(id)
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
-
 
         mesh_result["mesh_is_valid"] = is_mesh_valid_parallel(mesh_result["mesher_matrices"], id)
-
-        if is_stop_requested(id) || isnothing(mesh_result["mesh_is_valid"])
-            println("Meshing $(id) interrotta per richiesta stop.")
-            return nothing # O un altro valore che indica interruzione
-        end
 
         send_rabbitmq_feedback(Dict("gridsCreation" => true, "id" => id), "mesher_feedback")
         #publish_data(Dict("gridsCreation" => true, "id" => id), "mesher_feedback", chan)
@@ -511,12 +467,8 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
                 # ricordarsi di dividere per 1000 la cell_size quando la importi su esymia, così che il meshedElement la ridivida, per il solito problema di visualizzazione strano.
                 "cell_size" => "$(mesh_result["cell_size"]["cell_size_x"])-$(mesh_result["cell_size"]["cell_size_y"])-$(mesh_result["cell_size"]["cell_size_z"])"
             )
-            if is_stop_requested(id) || isnothing(externalGrids["externalGrids"])
-                rintln("Meshing $(id) interrotta per richiesta stop.")
-                return nothing # O un altro valore che indica interruzione
-            end
         end
-        
+
         println("end create grids")
 
         result = Dict("mesh" => mesh_result, "grids" => externalGrids, "isValid" => mesh_result["mesh_is_valid"]["valid"])
@@ -551,13 +503,6 @@ function doMeshing(dictData::Dict, id::String, aws_config, bucket_name)
             #     publish_data(res, "mesher_results", chan)
         else
             println(e)
-        end
-    finally
-        lock(stop_computation_lock) do
-            if haskey(stopComputation, id)
-                delete!(stopComputation, id)
-                println("Flag di stop per meshing $(id) rimosso.")
-            end
         end
     end
 end
@@ -656,5 +601,5 @@ function quantumAdvice(mesherInput; chan=nothing)
 end
 
 function parse_stl_string()
-    
+
 end

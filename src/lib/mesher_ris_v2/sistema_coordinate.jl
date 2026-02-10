@@ -9,7 +9,7 @@ function sistema_coordinate(coord, materiale)
         continua = 1
         c1 = 1
         c2 = c1 + 1
-        
+
         while c1 < nBarre
             # Ogni volta che il ciclo si resetta (perché è stato fatto un taglio)
             # significa che inizia una nuova passata.
@@ -30,7 +30,7 @@ function sistema_coordinate(coord, materiale)
                             new_coord = vcat(auxCord, coord[indiciNotCut, :])
                             new_materiale = vcat(ones(size(auxCord, 1)) * materiale[c2], materiale[indiciNotCut])
                         end
-                        
+
                         nBarre -= 1
                         nBarre += size(auxCord, 1)
                         continua = 0
@@ -52,7 +52,7 @@ function sistema_coordinate(coord, materiale)
             continua = 1
         end
     end
-    
+
     return new_coord, materiale
 end
 
@@ -184,12 +184,12 @@ function control_share(f1, f2, norma)
             end
         end
     end
-    return cutted,a,b,c,inverted
+    return cutted, a, b, c, inverted
 end
 
 function computeNormale(f1)
     norm1 = cross(f1[4:6] - f1[1:3], f1[7:9] - f1[1:3])
-    norm1 = norm1 ./ sqrt(sum(norm1.^2))
+    norm1 = norm1 ./ sqrt(sum(norm1 .^ 2))
     return norm1
 end
 
@@ -228,7 +228,7 @@ function find_cut(f1, f2, ind)
     end
 
     # Determine share based on overlapping conditions
-    if (c1 >= c3 && c4 >= c1) || (c2 >= c3 && c4 >= c2) || 
+    if (c1 >= c3 && c4 >= c1) || (c2 >= c3 && c4 >= c2) ||
        (c3 >= c1 && c2 >= c3) || (c4 >= c1 && c2 >= c4)
         share = 1
     end
@@ -482,7 +482,7 @@ function taglia(barra, a, b, c, num_faccia)
         for m = 1:Npuntiy
             for l = 1:Npuntix
                 rp[l, m, n, :] .= rmi .+ rai * a[l] .+ rbi * b[m] .+ rci * c[n] .+ rabi * a[l] * b[m] +
-                    rbci * b[m] * c[n] + raci * a[l] * c[n] + rabci * a[l] * b[m] * c[n]
+                                  rbci * b[m] * c[n] + raci * a[l] * c[n] + rabci * a[l] * b[m] * c[n]
             end
         end
     end
@@ -490,24 +490,24 @@ function taglia(barra, a, b, c, num_faccia)
     coord = zeros(2, 24)
     # Assign the coordinates based on the length of a, b, and c
     if length(a) > 2
-        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; 
-                        transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
-        coord[2, :] = [transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[3, 1, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; transpose(squeeze(rp[3, 2, 1, :]))...; 
-                        transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[3, 1, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...; transpose(squeeze(rp[3, 2, 2, :]))...]
+        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...;
+            transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
+        coord[2, :] = [transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[3, 1, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; transpose(squeeze(rp[3, 2, 1, :]))...;
+            transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[3, 1, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...; transpose(squeeze(rp[3, 2, 2, :]))...]
     end
 
     if length(b) > 2
-        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; 
-                        transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
-        coord[2, :] = [transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; transpose(squeeze(rp[1, 3, 1, :]))...; transpose(squeeze(rp[2, 3, 1, :]))...; 
-                        transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...; transpose(squeeze(rp[1, 3, 2, :]))...; transpose(squeeze(rp[2, 3, 2, :]))...]
+        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...;
+            transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
+        coord[2, :] = [transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; transpose(squeeze(rp[1, 3, 1, :]))...; transpose(squeeze(rp[2, 3, 1, :]))...;
+            transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...; transpose(squeeze(rp[1, 3, 2, :]))...; transpose(squeeze(rp[2, 3, 2, :]))...]
     end
 
     if length(c) > 2
-        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...; 
-                        transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
-        coord[2, :] = [transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...; 
-                        transpose(squeeze(rp[1, 1, 3, :]))...; transpose(squeeze(rp[2, 1, 3, :]))...; transpose(squeeze(rp[1, 2, 3, :]))...; transpose(squeeze(rp[2, 2, 3, :]))...]
+        coord[1, :] = [transpose(squeeze(rp[1, 1, 1, :]))...; transpose(squeeze(rp[2, 1, 1, :]))...; transpose(squeeze(rp[1, 2, 1, :]))...; transpose(squeeze(rp[2, 2, 1, :]))...;
+            transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...]
+        coord[2, :] = [transpose(squeeze(rp[1, 1, 2, :]))...; transpose(squeeze(rp[2, 1, 2, :]))...; transpose(squeeze(rp[1, 2, 2, :]))...; transpose(squeeze(rp[2, 2, 2, :]))...;
+            transpose(squeeze(rp[1, 1, 3, :]))...; transpose(squeeze(rp[2, 1, 3, :]))...; transpose(squeeze(rp[1, 2, 3, :]))...; transpose(squeeze(rp[2, 2, 3, :]))...]
     end
 
     return coord

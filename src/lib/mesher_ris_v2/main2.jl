@@ -1,3 +1,5 @@
+using JSON
+
 function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, bucket_name)
     try
         bricks = []
@@ -16,10 +18,50 @@ function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, buc
         rounded_bricks = zeros(length(bricks), 6)
         for (index, b) in enumerate(bricks)
             rounded_bricks[index, :] .= round.(b, digits=8)
-            #println(rounded_bricks[index, :])
         end
-        
-        Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
+
+        #Regioni = crea_regioni(rounded_bricks, bricks_material, materials)
+
+        # Caricamento regioni da file JSON (bypass crea_regioni)
+        println("Caricamento regioni da regioni.json...")
+        regioni_data = JSON.parsefile("regioni.json")["data"]
+
+        N_reg = length(regioni_data["coordinate"])
+        coord_mat = zeros(Float64, N_reg, 24)
+        for i in 1:N_reg
+            coord_mat[i, :] = Float64.(regioni_data["coordinate"][i])
+        end
+
+        epsr_real = Float64.(regioni_data["epsr"]["real"])
+        epsr_imag = Float64.(regioni_data["epsr"]["imag"])
+        epsr_complex = ComplexF64.(epsr_real) .+ im .* ComplexF64.(epsr_imag)
+
+        Regioni = Dict(
+            :coordinate => coord_mat,
+            :cond => Float64.(regioni_data["cond"]),
+            :epsr => epsr_complex,
+            :mu => Float64.(regioni_data["mu"]),
+            :mur => Float64.(regioni_data["mur"]),
+            :materials => regioni_data["materiale"]
+        )
+
+        # println(typeof(Regioni[:coordinate]))
+        # println(typeof(Regioni2[:coordinate]))
+        # println(typeof(Regioni[:cond]))
+        # println(typeof(Regioni2[:cond]))
+        # println(typeof(Regioni[:epsr]))
+        # println(typeof(Regioni2[:epsr]))
+        # println(typeof(Regioni[:mu]))
+        # println(typeof(Regioni2[:mu]))
+        # println(typeof(Regioni[:mur]))
+        # println(typeof(Regioni2[:mur]))
+        # println(typeof(Regioni[:materials]))
+        # println(typeof(Regioni2[:materials]))
+        # println(Regioni[:cond])
+        # println(Regioni[:epsr])
+        # println(Regioni[:mu])
+        # println(Regioni[:mur])
+        # println(Regioni[:materials])
         #publish_data(Dict("meshingStep" => 1, "id" => id), "mesher_feedback", chan)
         send_rabbitmq_feedback(Dict("meshingStep" => 1, "id" => id), "mesher_feedback")
         println("meshingStep1")
@@ -78,31 +120,24 @@ function doMeshingRis(input::Dict, id, density, freq_max, escal, aws_config, buc
             #     publish_data(res, "mesher_results", chan)
         end
         println(e)
-    finally
-        lock(stop_computation_lock) do
-            if haskey(stopComputation, id)
-                delete!(stopComputation, id)
-                println("Flag di stop per meshing $(id) rimosso.")
-            end
-        end
     end
 end
 
 
 function saveOnS3GZippedMeshRis(fileName::String, data::Dict, aws_config, bucket_name)
-    mesh_id = fileName*"_mesh.serialized"
-    surface = fileName*"_surface.json.gz"
-    if(s3_exists(aws_config, bucket_name, mesh_id))
+    mesh_id = fileName * "_mesh.serialized"
+    surface = fileName * "_surface.json.gz"
+    if (s3_exists(aws_config, bucket_name, mesh_id))
         s3_delete(aws_config, bucket_name, mesh_id)
     end
-    if(s3_exists(aws_config, bucket_name, surface))
+    if (s3_exists(aws_config, bucket_name, surface))
         s3_delete(aws_config, bucket_name, surface)
     end
     upload_serialized_data(aws_config, bucket_name, mesh_id, data[:mesh])
     upload_json_gz(aws_config, bucket_name, surface, data[:surface])
     return mesh_id, surface
 end
-  
+
 # function upload_json_gz(aws_config, bucket_name, file_name, data_to_save)
 #     println("Uploading ", file_name)
 #     dato_compresso = transcode(GzipCompressor, JSON.json(data_to_save))
@@ -114,19 +149,19 @@ function upload_serialized_data(aws_config, bucket_name, file_name, data_to_save
     io = IOBuffer()
     # Serialize the variable into the IOBuffer.
     Serialization.serialize(io, data_to_save)
-    
+
     # Get the bytes from the IOBuffer.
     data_bytes = take!(io)
     s3_put(aws_config, bucket_name, file_name, data_bytes)
 end
 
 function saveOnS3MeshRis(fileName::String, data::Dict, aws_config, bucket_name)
-    mesh_id = fileName*"_mesh.json"
-    surface = fileName*"_surface.json"
-    if(s3_exists(aws_config, bucket_name, mesh_id))
+    mesh_id = fileName * "_mesh.json"
+    surface = fileName * "_surface.json"
+    if (s3_exists(aws_config, bucket_name, mesh_id))
         s3_delete(aws_config, bucket_name, mesh_id)
     end
-    if(s3_exists(aws_config, bucket_name, surface))
+    if (s3_exists(aws_config, bucket_name, surface))
         s3_delete(aws_config, bucket_name, surface)
     end
     upload_json_data(aws_config, bucket_name, mesh_id, data[:mesh])
@@ -149,14 +184,14 @@ end
 # doMeshingRis(input, "test", aws, aws_bucket_name)
 
 function getBytes(x)
-    total = 0;
-    fieldNames = fieldnames(typeof(x));
+    total = 0
+    fieldNames = fieldnames(typeof(x))
     if fieldNames == []
-       return sizeof(x);
+        return sizeof(x)
     else
-      for fieldName in fieldNames
-         total += getBytes(getfield(x,fieldName));
-      end
-      return total;
+        for fieldName in fieldNames
+            total += getBytes(getfield(x, fieldName))
+        end
+        return total
     end
- end
+end

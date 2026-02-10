@@ -1,0 +1,51 @@
+name: Build Julia Mesher and Push Docker
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Project.toml'
+      - 'precompile_script.jl'
+      - 'main.jl'
+
+jobs:
+  build_julia:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11.7' # Usa la versione di Julia desiderata
+          
+      - name: Install PackageCompiler.jl
+        run: julia -e 'import Pkg; Pkg.add("PackageCompiler"); Pkg.instantiate()'
+        # L'instantiate assicura che tutte le dipendenze siano pronte
+        
+      - name: Compile Julia Executable (Mesher)
+        id: compile
+        run: | 
+          julia --project=. ./scripts/build_executable.jl
+          
+          # Assicurati che l'eseguibile sia stato creato
+          if [ ! -f $JULIA_EXE_DIR/mesher_exec ]; then
+            echo "::error::L'eseguibile mesher_exec non è stato trovato."
+            exit 1
+          fi
+        env:
+          CI_COMPILATION: "true"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
+          
+      - name: Upload Julia Executable as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MesherExecutable
+          path: build_output/
+          # Questo eseguibile sarà recuperato dal Job 2 (Build Docker)

@@ -7,14 +7,15 @@ function discretizza_thermal_rev(Regioni, materials, id)
     Regioni[:vertici] = zeros(size(Regioni[:coordinate], 1), 8, 3)
     for k = 1:size(Regioni[:coordinate], 1)
         Regioni[:vertici][k, :, :] = [Regioni[:coordinate][k, 1:3];
-                                         Regioni[:coordinate][k, 4:6];
-                                         Regioni[:coordinate][k, 7:9];
-                                         Regioni[:coordinate][k, 10:12];
-                                         Regioni[:coordinate][k, 13:15];
-                                         Regioni[:coordinate][k, 16:18];
-                                         Regioni[:coordinate][k, 19:21];
-                                         Regioni[:coordinate][k, 22:24]]
+            Regioni[:coordinate][k, 4:6];
+            Regioni[:coordinate][k, 7:9];
+            Regioni[:coordinate][k, 10:12];
+            Regioni[:coordinate][k, 13:15];
+            Regioni[:coordinate][k, 16:18];
+            Regioni[:coordinate][k, 19:21];
+            Regioni[:coordinate][k, 22:24]]
     end
+
 
     Regioni[:spigoli] = zeros(size(Regioni[:coordinate], 1), 12, 2, 3)
     for k = 1:size(Regioni[:coordinate], 1)
@@ -43,7 +44,7 @@ function discretizza_thermal_rev(Regioni, materials, id)
         Regioni[:spigoli][k, 12, 1, :] .= Regioni[:coordinate][k, 7:9]   # p3-p8
         Regioni[:spigoli][k, 12, 2, :] .= Regioni[:coordinate][k, 22:24]
     end
-    
+
     # Arrays and structs initialization
 
     celle_mag = []
@@ -95,8 +96,8 @@ function discretizza_thermal_rev(Regioni, materials, id)
     width_m = []
     sup_celle_sup = []
     sigma_c = []
-    mu_m=[]
-    mu_m_eq=[]
+    mu_m = []
+    mu_m_eq = []
     lati_m = []
     objects = []
 
@@ -108,7 +109,7 @@ function discretizza_thermal_rev(Regioni, materials, id)
     rc_sup = []
     w_sup = []
     indici_sup = []
-    sup_celle_mag=[]
+    sup_celle_mag = []
     # dump(Regioni[:Nx])
     # dump(Regioni[:Ny])
     # dump(Regioni[:Nz])
@@ -116,7 +117,7 @@ function discretizza_thermal_rev(Regioni, materials, id)
     discrUnif = 0
     for k = 1:size(Regioni[:coordinate], 1)
         # Call function to get various variables
-        barra_k, celle_cap_k, celle_ind_k, celle_sup_k, lati_k, lati_m_k, vers_k, Nodi_k, spessore_i_k, sup_celle_cap_k, sup_celle_ind_k, sup_celle_sup_k, l_i_k, l_c_k, l_m_k, width_i_k, width_c_k, width_m_k, dir_curr_k, vers_m_k, norm_m_k, celle_ind_sup_k, Sup_sup_k, indici_sup_k, normale_sup_k, dir_curr_sup_k, rc_sup_k, w_sup_k, NodiRed_k = 
+        barra_k, celle_cap_k, celle_ind_k, celle_sup_k, lati_k, lati_m_k, vers_k, Nodi_k, spessore_i_k, sup_celle_cap_k, sup_celle_ind_k, sup_celle_sup_k, l_i_k, l_c_k, l_m_k, width_i_k, width_c_k, width_m_k, dir_curr_k, vers_m_k, norm_m_k, celle_ind_sup_k, Sup_sup_k, indici_sup_k, normale_sup_k, dir_curr_sup_k, rc_sup_k, w_sup_k, NodiRed_k =
             discr_psp_nono_3D_vol_sup_save(Regioni[:coordinate][k, :], Int64(Regioni[:Nx][k]), Int64(Regioni[:Ny][k]), Int64(Regioni[:Nz][k]), discrUnif, weights_five, roots_five)
         #println("discr_psp_nono_3D_vol_sup_save")
         if k == 1
@@ -124,9 +125,9 @@ function discretizza_thermal_rev(Regioni, materials, id)
             push!(induttanze[:celle_ind_per_oggetto], 1:size(lati_k, 2))
         else
             #induttanze[:celle_ind_per_oggetto][k] = induttanze[:celle_ind_per_oggetto][k-1][end] + 1 : induttanze[:celle_ind_per_oggetto][k-1][end] + size(lati_k, 2)
-            push!(induttanze[:celle_ind_per_oggetto], induttanze[:celle_ind_per_oggetto][k-1][end] + 1 : induttanze[:celle_ind_per_oggetto][k-1][end] + size(lati_k, 2))
+            push!(induttanze[:celle_ind_per_oggetto], induttanze[:celle_ind_per_oggetto][k-1][end]+1:induttanze[:celle_ind_per_oggetto][k-1][end]+size(lati_k, 2))
         end
-    
+
         # Generate internal nodes
         Nodi_interni = genera_nodi_interni_rev(Regioni[:coordinate][k, :], Regioni[:Nx][k], Regioni[:Ny][k], Regioni[:Nz][k])
         #println("genera_nodi_interni_rev")
@@ -136,28 +137,26 @@ function discretizza_thermal_rev(Regioni, materials, id)
         if k == 1
             nodi[:nodi_i] = Nodi_interni
         else
-            if size(Nodi_interni,1) > 0 && size(nodi[:nodi_i],2) > 0 && size(nodi[:nodi_i],1) > 0 && size(Nodi_interni,2) > 0
+            if size(Nodi_interni, 1) > 0 && size(nodi[:nodi_i], 2) > 0 && size(nodi[:nodi_i], 1) > 0 && size(Nodi_interni, 2) > 0
                 nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni]
             else
                 nodi[:nodi_i] = Nodi_interni
             end
         end
         #println(size(nodi[:nodi_i]))
-        
+
         Nodi_interni_m = genera_nodi_interni_merged_non_ort(Regioni, Nodi_k, k, nodi[:nodi_i])
         #println("genera_nodi_interni_merged_non_ort")
         for conta = range(1, size(celle_ind_k, 1))
             l_i_k[conta], width_i_k[conta], spessore_i_k[conta], sup_celle_ind_k[conta], vers_k[conta, :] = creaVersore(celle_ind_k[conta, :], dir_curr_k[conta])
-            
             l_i_k[conta] = round_ud(l_i_k[conta], 12)
             width_i_k[conta] = round_ud(width_i_k[conta], 12)
             spessore_i_k[conta] = round_ud(spessore_i_k[conta], 12)
             sup_celle_ind_k[conta] = round_ud(sup_celle_ind_k[conta], 12)
             vers_k[conta, :] = round_ud(vers_k[conta, :], 12)
         end
-        
         nodi[:num_nodi_interni] += size(Nodi_interni_m, 1)
-        if k==1
+        if k == 1
             nodi[:nodi_i] = [nodi[:nodi_i]; Nodi_interni_m]
             # Append to the main variables
             barra = barra_k
@@ -253,11 +252,8 @@ function discretizza_thermal_rev(Regioni, materials, id)
             w_sup = [w_sup; w_sup_k]
             indici_sup = [indici_sup indici_sup_k]
         end
-        if is_stop_requested(id)
-            return nothing, nothing, nothing
-        end
         offset = size(NodiRed, 1)
-        
+
         # Update boundary cells
         induttanze[:estremi_lati_oggetti] = genera_estremi_lati_per_oggetto_rev(induttanze[:estremi_lati_oggetti], NodiRed_k, nodi[:nodi_i], squeeze(lati_k[1, :, :]), squeeze(lati_k[2, :, :]), offset)
         #println("genera_estremi_lati_per_oggetto_rev")
@@ -298,7 +294,7 @@ function discretizza_thermal_rev(Regioni, materials, id)
 
 
     # Define internal nodes
-    nodi[:nodi_interni] = size(nodi[:centri], 1) - nodi[:num_nodi_interni] + 1 : size(nodi[:centri], 1)
+    nodi[:nodi_interni] = size(nodi[:centri], 1)-nodi[:num_nodi_interni]+1:size(nodi[:centri], 1)
 
     # Transpose length
     nodi[:l] = transpose(nodi[:l])
@@ -309,11 +305,11 @@ function discretizza_thermal_rev(Regioni, materials, id)
     a = nodi[:estremi_celle][:, 4:6] .- nodi[:estremi_celle][:, 1:3]
     b = nodi[:estremi_celle][:, 7:9] .- nodi[:estremi_celle][:, 1:3]
     C = zeros(size(a))
-    for i in range(1, size(a,1))
-        C[ i, :] = cross(a[i, :], b[i, :])
+    for i in range(1, size(a, 1))
+        C[i, :] = cross(a[i, :], b[i, :])
     end
     nodi[:normale] = C
-    nodi[:normale] .= nodi[:normale] .÷ sqrt.(nodi[:normale][:, 1].^2 .+ nodi[:normale][:, 2].^2 .+ nodi[:normale][:, 3].^2)
+    nodi[:normale] .= nodi[:normale] .÷ sqrt.(nodi[:normale][:, 1] .^ 2 .+ nodi[:normale][:, 2] .^ 2 .+ nodi[:normale][:, 3] .^ 2)
 
     # If no internal nodes, initialize with zeros
     if nodi[:num_nodi_interni] == 0
@@ -321,17 +317,19 @@ function discretizza_thermal_rev(Regioni, materials, id)
     end
 
     # Call function to remove internal patches
-    nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:epsr], nodi[:materials], nodi[:sigma], nodi[:mur], nodi[:nodi_interni_coordinate], nodi[:num_nodi_interni], nodi[:nodi_esterni], nodi[:normale] = 
+    nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:epsr], nodi[:materials], nodi[:sigma], nodi[:mur], nodi[:nodi_interni_coordinate], nodi[:num_nodi_interni], nodi[:nodi_esterni], nodi[:normale] =
         elimina_patches_interni_thermal_save(
             nodi[:centri], nodi[:centri_non_rid], nodi[:estremi_celle], nodi[:epsr], nodi[:materials], nodi[:mur], nodi[:sigma], nodi[:nodi_i], nodi[:w], nodi[:l], nodi[:S_non_rid], nodi[:num_nodi_interni], nodi[:normale], 1
         )
     #println("elimina_patches_interni_thermal_save")
     # If no internal nodes, clear internal nodes
     if nodi[:num_nodi_interni] == 0
-        nodi[:nodi_i] = zeros(0,3)
+        nodi[:nodi_i] = zeros(0, 3)
     end
 
     # Find common internal nodes between 4 objects
+    # println(nodi[:centri])
+    # println(NodiRed)
     InternalNodesCommon2FourObjects = FindInternalNodesCommon2FourObjects_rev(nodi[:centri], NodiRed)
     #println("FindInternalNodesCommon2FourObjects_rev")
     # Update center and external/internal nodes
@@ -349,11 +347,11 @@ function discretizza_thermal_rev(Regioni, materials, id)
     nodi[:num_nodi_interni] += size(InternalNodesCommon2FourObjects, 1)
 
     # Compute incidence matrix and other data
-    induttanze[:estremi_lati], nodi[:Rv], nodi[:centri], 
+    induttanze[:estremi_lati], nodi[:Rv], nodi[:centri],
     A = matrice_incidenza_rev(induttanze[:coordinate], nodi[:centri], nodi[:nodi_interni_coordinate])
     #println("matrice_incidenza_rev")
     # Update indices based on epsr
-    indexes = findall(x -> x > 1, induttanze[:epsr])
+    indexes = findall(x -> abs(x) > 1.0001, induttanze[:epsr])
     induttanze[:indici_Nd] = indexes
 
     # Compute surfaces
@@ -367,12 +365,13 @@ function discretizza_thermal_rev(Regioni, materials, id)
     # Assign face indices for association
     induttanze[:facce_indici_associazione] = zeros(Int, size(A, 1), 6)
     for cont in 1:size(A, 1)
-        induttanze[:facce_indici_associazione][cont, :] .= ((cont - 1) * 6 + 1):(cont * 6)
+        induttanze[:facce_indici_associazione][cont, :] .= ((cont-1)*6+1):(cont*6)
     end
 
     # Call function to generate data for inductive surfaces
     #println("start genera_dati_Z_sup")
     induttanze = genera_dati_Z_sup(induttanze)
+    println("qui13")
     #println("end genera_dati_Z_sup")
 
     println("End discretization")
@@ -381,12 +380,12 @@ end
 
 function creaVersore(barra, dir_curr)
     if dir_curr == 1
-        x1 = 1/4 * sum(barra[[1, 7, 13, 19]])
-        x2 = 1/4 * sum(barra[[4, 10, 16, 22]])
-        y1 = 1/4 * sum(barra[[2, 8, 14, 20]])
-        y2 = 1/4 * sum(barra[[5, 11, 17, 23]])
-        z1 = 1/4 * sum(barra[[3, 9, 15, 21]])
-        z2 = 1/4 * sum(barra[[6, 12, 18, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 7, 13, 19]])
+        x2 = 1 / 4 * sum(barra[[4, 10, 16, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 8, 14, 20]])
+        y2 = 1 / 4 * sum(barra[[5, 11, 17, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 9, 15, 21]])
+        z2 = 1 / 4 * sum(barra[[6, 12, 18, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
@@ -394,24 +393,24 @@ function creaVersore(barra, dir_curr)
         vers = (v2 - v1) ./ norm(v2 - v1, 2)
         l = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 13, 16]])
-        x2 = 1/4 * sum(barra[[7, 10, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 14, 17]])
-        y2 = 1/4 * sum(barra[[8, 11, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 15, 18]])
-        z2 = 1/4 * sum(barra[[9, 12, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 13, 16]])
+        x2 = 1 / 4 * sum(barra[[7, 10, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 14, 17]])
+        y2 = 1 / 4 * sum(barra[[8, 11, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 15, 18]])
+        z2 = 1 / 4 * sum(barra[[9, 12, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
 
         w = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 7, 10]])
-        x2 = 1/4 * sum(barra[[13, 16, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 8, 11]])
-        y2 = 1/4 * sum(barra[[14, 17, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 9, 12]])
-        z2 = 1/4 * sum(barra[[15, 18, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 7, 10]])
+        x2 = 1 / 4 * sum(barra[[13, 16, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 8, 11]])
+        y2 = 1 / 4 * sum(barra[[14, 17, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 9, 12]])
+        z2 = 1 / 4 * sum(barra[[15, 18, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
@@ -420,24 +419,24 @@ function creaVersore(barra, dir_curr)
         S = w * t
 
     elseif dir_curr == 2
-        x1 = 1/4 * sum(barra[[1, 7, 13, 19]])
-        x2 = 1/4 * sum(barra[[4, 10, 16, 22]])
-        y1 = 1/4 * sum(barra[[2, 8, 14, 20]])
-        y2 = 1/4 * sum(barra[[5, 11, 17, 23]])
-        z1 = 1/4 * sum(barra[[3, 9, 15, 21]])
-        z2 = 1/4 * sum(barra[[6, 12, 18, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 7, 13, 19]])
+        x2 = 1 / 4 * sum(barra[[4, 10, 16, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 8, 14, 20]])
+        y2 = 1 / 4 * sum(barra[[5, 11, 17, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 9, 15, 21]])
+        z2 = 1 / 4 * sum(barra[[6, 12, 18, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
 
         t = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 13, 16]])
-        x2 = 1/4 * sum(barra[[7, 10, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 14, 17]])
-        y2 = 1/4 * sum(barra[[8, 11, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 15, 18]])
-        z2 = 1/4 * sum(barra[[9, 12, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 13, 16]])
+        x2 = 1 / 4 * sum(barra[[7, 10, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 14, 17]])
+        y2 = 1 / 4 * sum(barra[[8, 11, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 15, 18]])
+        z2 = 1 / 4 * sum(barra[[9, 12, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
@@ -445,12 +444,12 @@ function creaVersore(barra, dir_curr)
         vers = (v2 - v1) ./ norm(v2 - v1, 2)
         l = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 7, 10]])
-        x2 = 1/4 * sum(barra[[13, 16, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 8, 11]])
-        y2 = 1/4 * sum(barra[[14, 17, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 9, 12]])
-        z2 = 1/4 * sum(barra[[15, 18, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 7, 10]])
+        x2 = 1 / 4 * sum(barra[[13, 16, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 8, 11]])
+        y2 = 1 / 4 * sum(barra[[14, 17, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 9, 12]])
+        z2 = 1 / 4 * sum(barra[[15, 18, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
@@ -459,36 +458,36 @@ function creaVersore(barra, dir_curr)
         S = w * t
 
     else
-        x1 = 1/4 * sum(barra[[1, 7, 13, 19]])
-        x2 = 1/4 * sum(barra[[4, 10, 16, 22]])
-        y1 = 1/4 * sum(barra[[2, 8, 14, 20]])
-        y2 = 1/4 * sum(barra[[5, 11, 17, 23]])
-        z1 = 1/4 * sum(barra[[3, 9, 15, 21]])
-        z2 = 1/4 * sum(barra[[6, 12, 18, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 7, 13, 19]])
+        x2 = 1 / 4 * sum(barra[[4, 10, 16, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 8, 14, 20]])
+        y2 = 1 / 4 * sum(barra[[5, 11, 17, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 9, 15, 21]])
+        z2 = 1 / 4 * sum(barra[[6, 12, 18, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
 
         t = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 13, 16]])
-        x2 = 1/4 * sum(barra[[7, 10, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 14, 17]])
-        y2 = 1/4 * sum(barra[[8, 11, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 15, 18]])
-        z2 = 1/4 * sum(barra[[9, 12, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 13, 16]])
+        x2 = 1 / 4 * sum(barra[[7, 10, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 14, 17]])
+        y2 = 1 / 4 * sum(barra[[8, 11, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 15, 18]])
+        z2 = 1 / 4 * sum(barra[[9, 12, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]
 
         w = norm(v2 - v1, 2)
 
-        x1 = 1/4 * sum(barra[[1, 4, 7, 10]])
-        x2 = 1/4 * sum(barra[[13, 16, 19, 22]])
-        y1 = 1/4 * sum(barra[[2, 5, 8, 11]])
-        y2 = 1/4 * sum(barra[[14, 17, 20, 23]])
-        z1 = 1/4 * sum(barra[[3, 6, 9, 12]])
-        z2 = 1/4 * sum(barra[[15, 18, 21, 24]])
+        x1 = 1 / 4 * sum(barra[[1, 4, 7, 10]])
+        x2 = 1 / 4 * sum(barra[[13, 16, 19, 22]])
+        y1 = 1 / 4 * sum(barra[[2, 5, 8, 11]])
+        y2 = 1 / 4 * sum(barra[[14, 17, 20, 23]])
+        z1 = 1 / 4 * sum(barra[[3, 6, 9, 12]])
+        z2 = 1 / 4 * sum(barra[[15, 18, 21, 24]])
 
         v1 = [x1 y1 z1]
         v2 = [x2 y2 z2]

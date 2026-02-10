@@ -1,4 +1,10 @@
-DotEnv.load!()
+if get(ENV, "CI_COMPILATION", "false") == "true"
+    # Non esegue DotEnv.load!()
+    println("Ambiente CI rilevato...")
+else
+    # Esegue DotEnv.load!() (solo in locale)
+    DotEnv.load!()
+end
 
 aws_access_key_id = ENV["AWS_ACCESS_KEY_ID"]
 aws_secret_access_key = ENV["AWS_SECRET_ACCESS_KEY"]
@@ -15,18 +21,19 @@ const CORS_HEADERS = [
 
 # https://juliaweb.github.io/HTTP.jl/stable/examples/#Cors-Server
 function CorsMiddleware(handler)
-    return function(req::HTTP.Request)
+    return function (req::HTTP.Request)
         # determine if this is a pre-flight request from the browser
-        if HTTP.method(req)=="OPTIONS"
-            return HTTP.Response(200, CORS_HEADERS)  
-        else 
+        if HTTP.method(req) == "OPTIONS"
+            return HTTP.Response(200, CORS_HEADERS)
+        else
             return handler(req) # passes the request to the Application
         end
     end
 end
 
 const VIRTUALHOST = "/"
-const HOST = "rabbitmq"
+#const HOST = "rabbitmq"
+const HOST = "127.0.0.1"
 const PORT = 5672
 
 
@@ -38,19 +45,17 @@ const PORT = 5672
 # e dalle API di Oxygen.
 # ==============================================================================
 const mesher_overall_status = Ref("ready") # ready, busy, error
-const active_meshing = Dict{String, Dict{String, Any}}() # ID progetto -> {status, progress, start_time, etc.}
+const active_meshing = Dict{String,Dict{String,Any}}() # ID progetto -> {status, progress, start_time, etc.}
 const meshing_lock = ReentrantLock() # Lock per proteggere `active_meshing`
-# const stopComputation = []
-const stopComputation = Dict{String, Ref{Bool}}() # ID progetto -> Ref{Bool} per il flag di stop
-const stop_computation_lock = ReentrantLock() # Aggiungi un lock per proteggere stopComputation
+# const stopComputation = Dict{String,Ref{Bool}}() # Rimosso polling
 const commentsEnabled = []
 
 
 function force_compile2()
-  println("------ Precompiling routes...wait for mesher to be ready ---------")
-  data = open(JSON.parse, "first_run_data.json")
-  doMeshing(data, "init", aws, aws_bucket_name)
-  println("MESHER READY")
+    println("------ Precompiling routes...wait for mesher to be ready ---------")
+    data = open(JSON.parse, "first_run_data.json")
+    doMeshing(data, "init", aws, aws_bucket_name)
+    println("MESHER READY")
 end
 
 
@@ -72,167 +77,236 @@ function send_rabbitmq_feedback(data::Dict, routing_key::String)
     end
 end
 
-# Funzione wrapper per le tue funzioni di meshing originali
-# Questa funzione gestirà il ciclo di vita di un'operazione di meshing
-# e invierà feedback su RabbitMQ.
-function run_meshing_task(
-    project_id::String,
-    mesher_function::Function, # es. doMeshing, doMeshingRis
-    args...; # Argomenti specifici per la funzione mesher
-    meshing_type::String
-)
-    lock(meshing_lock) do
-        active_meshing[project_id] = Dict(
-            "status" => "running",
-            "progress" => 0,
-            "start_time" => time(),
-            "type" => meshing_type
-        )
+function run_meshing_on_worker(mesher_type::String, args...)
+    if mesher_type == "Standard"
+        doMeshing(args..., aws, aws_bucket_name)
+    elseif mesher_type == "Ris"
+        doMeshingRis(args..., aws, aws_bucket_name)
+    else
+        error("Tipo di meshing sconosciuto: $(mesher_type)")
     end
-    #send_rabbitmq_feedback(Dict("id" => project_id, "status" => "running", "type" => meshing_type), "mesher_results")
+end
 
-    try
-        # Precompila, se non lo hai già fatto in fase di avvio del server
-        # force_compile2() # Potresti volerlo fare una volta all'avvio del server Julia
+# ==============================================================================
+# Spawn di una meshing su un worker Distributed
+# ==============================================================================
+function spawn_worker_meshing(project_id::String, meshing_type::String, args...)
+    # Crea un worker process dedicato
+    worker_id = addprocs(1)[1]
+    println("Worker $(worker_id) creato per meshing $(project_id)")
 
-        # Esegui la Meshing
-        # La funzione solver_function DOVRA' essere modificata per accettare
-        # un callback o un canale per il progresso, e per i feedback intermedi.
-        # Per ora, si assume che pubblichi solo il risultato finale.
-        results = mesher_function(args...)
+    # Carica il modulo Mesher sul worker
+    Distributed.remotecall_eval(Main, worker_id, :(using Mesher))
 
-        # Meshing completata
-        lock(meshing_lock) do
-            active_meshing[project_id]["status"] = "completed"
-            active_meshing[project_id]["progress"] = 100
-            active_meshing[project_id]["end_time"] = time()
+    # Traccia la simulazione
+    is_already_stopped = lock(meshing_lock) do
+        if haskey(active_meshing, project_id)
+            active_meshing[project_id]["worker_id"] = worker_id
+            active_meshing[project_id]["status"] = "running"
+            active_meshing[project_id]["start_time"] = time()
+            active_meshing[project_id]["progress"] = 0
+            return get(active_meshing[project_id], "stopped", false)
         end
-        #send_rabbitmq_feedback(Dict("id" => project_id, "status" => "completed", "type" => meshing_type, "results" => results), "mesher_results")
+        return false
+    end
 
-    catch e
-        println("Errore critico nella Meshing $(project_id): $(e)")
+    if is_already_stopped
+        println("Meshing $(project_id) fermata prima ancora di iniziare. Rimuovo worker $(worker_id).")
+        rmprocs(worker_id)
         lock(meshing_lock) do
-            active_meshing[project_id]["status"] = "failed"
-            active_meshing[project_id]["error_message"] = string(e)
-            active_meshing[project_id]["end_time"] = time()
+            if haskey(active_meshing, project_id)
+                active_meshing[project_id]["status"] = "stopped"
+                active_meshing[project_id]["end_time"] = time()
+            end
         end
-        #send_rabbitmq_feedback(Dict("id" => project_id, "status" => "failed", "type" => meshing_type, "message" => string(e)), "mesher_results")
-    finally
-        # Rimuovi la Meshing dalla lista delle attive dopo un po'
-        # o sposta in una lista di "simulate terminate"
+        # Pulizia accelerata per permettere il riavvio immediato
         Threads.@spawn begin
-            sleep(60) # Mantieni i risultati per 1 minut0
+            sleep(2)
             lock(meshing_lock) do
-                if haskey(active_meshing, project_id) && active_meshing[project_id]["status"] in ["completed", "failed"]
+                if haskey(active_meshing, project_id) && active_meshing[project_id]["status"] == "stopped"
+                    delete!(active_meshing, project_id)
+                end
+            end
+        end
+        return
+    end
+
+    # Lancia la computazione sul worker
+    future = remotecall(run_meshing_on_worker, worker_id, meshing_type, args...)
+
+    # Monitora in background
+    Threads.@spawn monitor_worker_meshing(project_id, meshing_type, worker_id, future)
+end
+
+# ==============================================================================
+# Monitoraggio del worker: gestisce completamento, errore, stop
+# ==============================================================================
+function monitor_worker_meshing(project_id::String, meshing_type::String, worker_id::Int, future::Future)
+    try
+        fetch(future)
+        # Completata con successo
+        lock(meshing_lock) do
+            if haskey(active_meshing, project_id)
+                active_meshing[project_id]["status"] = "completed"
+                active_meshing[project_id]["progress"] = 100
+                active_meshing[project_id]["end_time"] = time()
+            end
+        end
+    catch e
+        was_stopped = lock(meshing_lock) do
+            haskey(active_meshing, project_id) && get(active_meshing[project_id], "stopped", false)
+        end
+        if was_stopped || e isa ProcessExitedException
+            lock(meshing_lock) do
+                if haskey(active_meshing, project_id)
+                    active_meshing[project_id]["status"] = "stopped"
+                    active_meshing[project_id]["end_time"] = time()
+                end
+            end
+            println("Meshing $(project_id) fermata dall'utente.")
+        else
+            println("Errore nella Meshing $(project_id): $(e)")
+            lock(meshing_lock) do
+                if haskey(active_meshing, project_id)
+                    active_meshing[project_id]["status"] = "failed"
+                    active_meshing[project_id]["error_message"] = string(e)
+                    active_meshing[project_id]["end_time"] = time()
+                end
+            end
+        end
+    finally
+        # Rimuovi il worker
+        try
+            rmprocs(worker_id)
+            println("Worker $(worker_id) terminato.")
+        catch
+        end
+        # Pulizia dopo un delay
+        Threads.@spawn begin
+            sleep(60)
+            lock(meshing_lock) do
+                if haskey(active_meshing, project_id) && active_meshing[project_id]["status"] in ["completed", "failed", "stopped"]
                     delete!(active_meshing, project_id)
                     println("Meshing $(project_id) rimossa dalla lista attiva.")
                 end
             end
         end
-        # Aggiorna lo stato generale del solver se non ci sono altre simulazioni attive
+        # Aggiorna lo stato generale
         lock(meshing_lock) do
-            if isempty(active_meshing)
+            running = any(v -> v["status"] == "running", values(active_meshing))
+            if !running
                 mesher_overall_status[] = "ready"
-                send_rabbitmq_feedback(Dict("target" => "solver", "status" => mesher_overall_status[]), "server_init")
+                send_rabbitmq_feedback(Dict("target" => "mesher", "status" => mesher_overall_status[]), "server_init")
             end
         end
     end
 end
 
 function setup_Oxygen_routes()
-  @post "/meshing" function(req) 
-    try
-      req_data = Oxygen.json(req) # Assume JSON body
-      project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
-      meshing_type = get(req_data, "meshingType", "Strandard") # 'Standard', 'Ris'
-      lock(meshing_lock) do
-          if haskey(active_meshing, project_id)
-              return HTTP.Response(500, CORS_HEADERS)
-          end
-          active_meshing[project_id] = Dict(
-              "status" => "pending",
-              "progress" => 0,
-              "type" => meshing_type
-          )
-      end
-      if meshing_type == "Standard"
-        Threads.@spawn run_meshing_task(
-          project_id,
-          doMeshing,
-          deep_symbolize_keys(req_data),
-          project_id,
-          aws, aws_bucket_name;
-          meshing_type
-        )
-      end
-      if meshing_type == "Ris"
-        input = get_risGeometry_from_s3(aws, aws_bucket_name, req_data["fileNameRisGeometry"])
-        Threads.@spawn run_meshing_task(
-          project_id,
-          doMeshingRis,
-          input,
-          project_id,
-          req_data["density"],
-          req_data["freqMax"],
-          req_data["escal"],
-          aws, aws_bucket_name;
-          meshing_type
-        )
-      end
-      HTTP.Response(200, CORS_HEADERS)
-    catch e 
-      println("Errore nell'avvio della meshing: $(e)")
-      HTTP.Response(500, CORS_HEADERS)
-    end
-  end
-  @post "/quantumAdvice" function(req) 
-    try
-      req_data = Oxygen.json(req)
-      project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
-      Threads.@spawn quantumAdvice(req_data)
-      HTTP.Response(200, CORS_HEADERS)
-    catch e
-      println("Errore nel calcolo del quanto suggerito: $(e)")
-      HTTP.Response(500, CORS_HEADERS)
-    end
-  end
-  @post "/getGrids" function(req) 
-    try
-      req_data = Oxygen.json(req)
-      get_grids_from_s3(aws, aws_bucket_name, req_data)
-      HTTP.Response(200, CORS_HEADERS)
-    catch e
-      println("Errore nel recuperare le griglie: $(e)")
-      HTTP.Response(500, CORS_HEADERS)
-    end
-  end
-  @post "/stop_computation" function(req)
-      meshing_id = queryparams(req)["meshing_id"]
-      lock(stop_computation_lock) do
-          if haskey(active_meshing, meshing_id)
-              if !haskey(stopComputation, meshing_id) # Crea il Ref{Bool} se non esiste
-                  stopComputation[meshing_id] = Ref(false)
-              end
-              stopComputation[meshing_id][] = true # Imposta il flag di stop su true
-              println("Richiesta di stop per meshing $(meshing_id) ricevuta. Flag impostato su $(stopComputation[meshing_id][]).")
-              
-              # Opzionale: Invia un feedback immediato al client via RabbitMQ che la richiesta è stata accettata
-              #send_rabbitmq_feedback(Dict("id" => meshing_id, "status" => "stopping", "type" => active_meshing[meshing_id]["type"]), "solver_results")
+    @post "/meshing" function (req)
+        try
+            req_data = Oxygen.json(req) # Assume JSON body
+            project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
+            meshing_type = get(req_data, "meshingType", "Strandard") # 'Standard', 'Ris'
+            # Utilizzo una variabile per catturare l'errore ed uscire dal lock
+            err_response = lock(meshing_lock) do
+                if haskey(active_meshing, project_id)
+                    status = active_meshing[project_id]["status"]
+                    if status in ["running", "pending"]
+                        println("Negato avvio meshing $(project_id): già in corso (stato: $(status))")
+                        return HTTP.Response(400, CORS_HEADERS, body="Meshing already in progress")
+                    end
+                end
+                active_meshing[project_id] = Dict(
+                    "status" => "pending",
+                    "progress" => 0,
+                    "type" => meshing_type
+                )
+                return nothing
+            end
 
-              return HTTP.Response(200, CORS_HEADERS)
-          else
-              println("Richiesta di stop per meshing $(meshing_id) ma la meshing non è attiva.")
-              return HTTP.Response(500, CORS_HEADERS)
-          end
-      end
+            if !isnothing(err_response)
+                return err_response
+            end
+            if meshing_type == "Standard"
+                spawn_worker_meshing(
+                    project_id,
+                    "Standard",
+                    deep_symbolize_keys(req_data),
+                    project_id
+                )
+            end
+            if meshing_type == "Ris"
+                input = get_risGeometry_from_s3(aws, aws_bucket_name, req_data["fileNameRisGeometry"])
+                spawn_worker_meshing(
+                    project_id,
+                    "Ris",
+                    input,
+                    project_id,
+                    req_data["density"],
+                    req_data["freqMax"],
+                    req_data["escal"]
+                )
+            end
+            HTTP.Response(200, CORS_HEADERS)
+        catch e
+            println("Errore nell'avvio della meshing: $(e)")
+            HTTP.Response(500, CORS_HEADERS)
+        end
+    end
+    @post "/quantumAdvice" function (req)
+        try
+            req_data = Oxygen.json(req)
+            project_id = get(req_data, "id", "randomid") # Genera ID se non fornito
+            Threads.@spawn quantumAdvice(req_data)
+            HTTP.Response(200, CORS_HEADERS)
+        catch e
+            println("Errore nel calcolo del quanto suggerito: $(e)")
+            HTTP.Response(500, CORS_HEADERS)
+        end
+    end
+    @post "/getGrids" function (req)
+        try
+            req_data = Oxygen.json(req)
+            get_grids_from_s3(aws, aws_bucket_name, req_data)
+            HTTP.Response(200, CORS_HEADERS)
+        catch e
+            println("Errore nel recuperare le griglie: $(e)")
+            HTTP.Response(500, CORS_HEADERS)
+        end
+    end
+    @post "/stop_computation" function (req)
+        meshing_id = queryparams(req)["meshing_id"]
+        worker_id = lock(meshing_lock) do
+            if haskey(active_meshing, meshing_id)
+                status = active_meshing[meshing_id]["status"]
+                if status in ["running", "pending"]
+                    active_meshing[meshing_id]["stopped"] = true
+                    val = get(active_meshing[meshing_id], "worker_id", nothing)
+                    println("Richiesta stop per meshing $(meshing_id) (stato: $(status), worker: $(val))")
+                    return val
+                end
+            end
+            return nothing
+        end
+
+        if !isnothing(worker_id)
+            try
+                println("Terminazione worker $(worker_id) per meshing $(meshing_id)...")
+                rmprocs(worker_id)
+                println("Worker $(worker_id) terminato.")
+            catch e
+                println("Errore nella terminazione del worker $(worker_id): $(e)")
+            end
+            return HTTP.Response(200, CORS_HEADERS)
+        else
+            println("Meshing $(meshing_id) non ancora avviata su un worker o già completata. Flag stop impostato.")
+            return HTTP.Response(200, CORS_HEADERS)
+        end
     end
 end
 
-function is_stop_requested(meshing_id::String)
-    lock(stop_computation_lock) do
-        return haskey(stopComputation, meshing_id) && stopComputation[meshing_id][]
-    end
-end
+# Rimosso is_stop_requested - non più usato col sistema process-based
 
 # ==============================================================================
 # Main execution flow
@@ -254,9 +328,9 @@ function julia_main()
         println("Avvio del server Oxygen...")
     end
 
-    if !is_building_app
+    if !is_building_app && myid() == 1
         try
-            serve(middleware=[CorsMiddleware],port=8002, host="0.0.0.0", async=true) #con async a true non blocca il thread principale
+            serve(middleware=[CorsMiddleware], port=8002, host="0.0.0.0", async=true) #con async a true non blocca il thread principale
             # Invia lo stato "ready" dopo aver avviato Oxygen e precompilato
             send_rabbitmq_feedback(Dict("target" => "mesher", "status" => "ready"), "server_init")
             mesher_overall_status[] = "ready"
@@ -278,7 +352,7 @@ function julia_main()
     else
         println("Processo di PackageCompiler.jl in corso (generazione output). Il mesher non verrà avviato.")
     end
-    
+
 end
 
 # Punto di ingresso principale del tuo server

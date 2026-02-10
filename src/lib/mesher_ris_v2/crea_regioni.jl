@@ -25,7 +25,7 @@ function crea_regioni(bricks, bricks_material, materials)
 
     # Case for conductors
     st = 1
-    for k in range(1,size(materials, 1))
+    for k in range(1, size(materials, 1))
         if abs(materials[k][:sigmar]) > 1e-10
             ind = findall(x -> x == k, bricks_material)
             en = st - 1 + length(ind)
@@ -39,7 +39,7 @@ function crea_regioni(bricks, bricks_material, materials)
         end
     end
     # Case for dielectrics (Dielectrics should always be after all conductors)
-    for k in range(1,size(materials, 1))
+    for k in range(1, size(materials, 1))
         if abs(materials[k][:sigmar]) < 1e-10
             ind = findall(x -> x == k, bricks_material)
             en = st - 1 + length(ind)
